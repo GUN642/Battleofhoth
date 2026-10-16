@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Hoth-Menu</title>
+<style>
+  :root { --yel: #ffe81f; --red: #ff4b2b; --panel: rgba(12, 18, 28, 0.82); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #cfdbe6; font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif; color: #fff; touch-action: none; }
+  canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #topbar { position: absolute; top: 8px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; font-size: clamp(11px, 2.2vmin, 16px); text-shadow: 0 1px 3px #000; }
+  .box { background: rgba(10, 16, 26, 0.55); border-radius: 8px; padding: 6px 10px; line-height: 1.45; }
+  #stats b { color: var(--yel); }
+  #stats .reb { color: #9fe2a0; } #stats .imp { color: #ff9a8a; }
+  #genWrap { flex: 0 1 34vw; text-align: center; }
+  #genBar { height: 10px; border-radius: 5px; background: rgba(0,0,0,0.5); overflow: hidden; margin-top: 3px; border: 1px solid rgba(255,255,255,0.3); }
+  #genFill { height: 100%; width: 100%; background: linear-gradient(90deg, #4fc3ff, #9ee8ff); transition: width .2s; }
+  #right { text-align: right; }
+  #radar { display: block; margin-top: 6px; margin-left: auto; width: clamp(90px, 20vmin, 150px); height: clamp(90px, 20vmin, 150px); border-radius: 50%; background: rgba(10, 20, 30, 0.45); border: 1px solid rgba(255,255,255,0.35); }
+  #cross { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); }
+  #cross::before, #cross::after { content: ''; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 2px #000; }
+  #cross::before { left: 12px; top: 0; width: 2px; height: 26px; clip-path: polygon(0 0,100% 0,100% 38%,0 38%,0 62%,100% 62%,100% 100%,0 100%); }
+  #cross::after { top: 12px; left: 0; height: 2px; width: 26px; clip-path: polygon(0 0,38% 0,38% 100%,0 100%,0 0,62% 0,100% 0,100% 100%,62% 100%); }
+  #cross.big { width: 60px; height: 60px; border: 2px solid rgba(255,190,80,0.85); border-radius: 50%; }
+  #cross.big::before, #cross.big::after { display: none; }
+  #hit { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; transition: opacity .12s; }
+  #hit::before, #hit::after { content: ''; position: absolute; background: #ff5030; }
+  #hit::before { left: 16px; top: 0; width: 3px; height: 34px; clip-path: polygon(0 0,100% 0,100% 35%,0 35%,0 65%,100% 65%,100% 100%,0 100%); }
+  #hit::after { top: 16px; left: 0; height: 3px; width: 34px; clip-path: polygon(0 0,35% 0,35% 100%,0 100%,0 0,65% 0,100% 0,100% 100%,65% 100%); }
+  #hit.on { opacity: 1; transition: none; }
+  #heat { position: absolute; left: 50%; top: calc(50% + 34px); width: 90px; height: 5px; transform: translateX(-50%); background: rgba(0,0,0,0.4); border-radius: 3px; overflow: hidden; }
+  #heatFill { height: 100%; width: 0; background: #ffb340; }
+  #heat.over #heatFill { background: #ff3b2b; }
+  #prompt { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); font-size: clamp(13px, 2.6vmin, 19px); text-align: center; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+  #prompt span { background: rgba(10,16,26,0.6); padding: 5px 12px; border-radius: 6px; display: inline-block; margin: 2px; }
+  #msgs { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); text-align: center; width: 90%; font-size: clamp(13px, 2.6vmin, 20px); }
+  #msgs div { color: var(--yel); text-shadow: 0 1px 3px #000, 0 0 8px #000; margin: 3px 0; transition: opacity .6s; }
+  #dead { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(120,0,0,0.15), rgba(90,0,0,0.65)); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: clamp(18px, 5vmin, 40px); text-shadow: 0 2px 6px #000; }
+  #dead small { font-size: 0.5em; margin-top: 8px; color: #ffd; }
+
+  /* ---------- Touch ---------- */
+  #touch { position: fixed; inset: 0; pointer-events: none; }
+  #joyBase { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45); background: rgba(20,30,45,0.25); display: none; }
+  #joyKnob { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.55); }
+  #joyHint { position: absolute; left: 6vw; bottom: 8vh; width: 110px; height: 110px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.35); display: flex; align-items: center; justify-content: center; font-size: 12px; color: rgba(255,255,255,0.7); text-shadow: 0 1px 2px #000; }
+  .tbtn { position: absolute; pointer-events: auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; background: rgba(20, 30, 45, 0.45); border: 2px solid rgba(255,255,255,0.55); font-size: clamp(11px, 2.4vmin, 16px); }
+  .tbtn.on { background: rgba(255, 120, 60, 0.55); }
+  #bFire { right: 4vw; bottom: 9vh; width: 23vmin; height: 23vmin; background: rgba(200, 50, 30, 0.45); font-size: clamp(13px, 3vmin, 20px); }
+  #bJump { right: calc(4vw + 25vmin); bottom: 5vh; width: 14vmin; height: 14vmin; }
+  #bUse { right: calc(4vw + 23vmin); bottom: calc(9vh + 17vmin); width: 14vmin; height: 14vmin; background: rgba(40, 120, 200, 0.5); }
+  #bHarp { right: 4vw; bottom: calc(11vh + 24vmin); width: 15vmin; height: 15vmin; background: rgba(230, 160, 30, 0.55); font-size: clamp(9px, 2vmin, 13px); }
+  #bPause { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); margin-top: clamp(40px, 9vmin, 60px); width: 40px; height: 40px; border-radius: 8px; font-size: 18px; }
+
+  /* ---------- Menüs ---------- */
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; background: linear-gradient(180deg, rgba(8,12,20,0.35), rgba(8,12,20,0.65)); overflow-y: auto; touch-action: pan-y; }
+  .panel { background: var(--panel); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 18px 22px; width: min(860px, 100%); max-height: 100%; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); touch-action: pan-y; }
+  h1 { margin: 0; font-family: Impact, 'Arial Black', sans-serif; letter-spacing: 3px; color: var(--yel); font-size: clamp(26px, 7vmin, 56px); text-align: center; text-shadow: 0 0 18px rgba(255,232,31,0.35); }
+  .sub { text-align: center; color: #cfe3ff; margin: 4px 0 14px; font-size: clamp(12px, 2.4vmin, 16px); }
+  #settings { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; }
+  .set label { display: flex; justify-content: space-between; font-size: clamp(12px, 2.3vmin, 15px); }
+  .set label b { color: var(--yel); }
+  .set input { width: 100%; accent-color: #ffb340; height: 26px; touch-action: pan-x; }
+  .btns { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: bold; letter-spacing: 1px; border: 0; border-radius: 10px; padding: 12px 28px; cursor: pointer; background: #ffb340; color: #1a1206; font-size: clamp(14px, 2.8vmin, 19px); }
+  button.sec { background: #3c4a5e; color: #fff; }
+  .help { margin-top: 12px; font-size: clamp(11px, 2vmin, 13px); color: #b8c7da; line-height: 1.5; }
+  .help b { color: #fff; }
+  #overTitle.win { color: #8cff9a; } #overTitle.lose { color: #ff6b5b; }
+  #overText { text-align: center; font-size: clamp(13px, 2.6vmin, 18px); line-height: 1.6; }
+  .btns.sticky { position: sticky; bottom: -18px; padding: 10px 0; margin-bottom: -18px; background: linear-gradient(180deg, rgba(12,18,28,0), rgba(12,18,28,0.95) 40%); }
+  @media (max-width: 560px) { #settings { grid-template-columns: 1fr; } }
+  @media (max-height: 520px) {
+    .panel { padding: 10px 16px; }
+    h1 { font-size: clamp(22px, 8vh, 40px); }
+    .sub { margin: 0 0 6px; }
+    #settings { gap: 0 22px; }
+    .set input { height: 20px; margin: 0; }
+    .btns { margin-top: 6px; }
+    button { padding: 9px 24px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div id="stats" class="box"></div>
+    <div id="genWrap" class="box">Schildgenerator<div id="genBar"><div id="genFill"></div></div></div>
+    <div id="right"><div id="lives" class="box"></div><canvas id="radar" width="150" height="150"></canvas></div>
+  </div>
+  <div id="cross"></div>
+  <div id="hit"></div>
+  <div id="heat"><div id="heatFill"></div></div>
+  <div id="prompt"></div>
+  <div id="msgs"></div>
+  <div id="dead" class="hidden"><div id="deadTitle">Getroffen!</div><small id="deadText"></small></div>
+</div>
+
+<div id="touch" class="hidden">
+  <div id="joyHint">Bewegen</div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div class="tbtn" id="bFire">FEUER</div>
+  <div class="tbtn" id="bJump">SPRUNG</div>
+  <div class="tbtn" id="bUse">E</div>
+  <div class="tbtn hidden" id="bHarp">KABEL</div>
+  <div class="tbtn" id="bPause">II</div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="panel">
+    <h1>BATTLE OF HOTH</h1>
+    <div class="sub">Verteidige Echo Base gegen den Angriff des Imperiums!</div>
+    <div id="settings"></div>
+    <div class="btns sticky"><button id="startBtn">SCHLACHT STARTEN</button></div>
+    <div class="help">
+      <b>Ziel:</b> Vernichte alle Sturmtruppen, AT-STs und AT-ATs, bevor sie den Schildgenerator zerstören.
+      Jeder Blastertreffer ist für Soldaten tödlich – auch für dich. Halte dich im Schützengraben in Deckung!<br>
+      <b>Läufer</b> (AT-ST, AT-AT) sind gegen Handblaster gepanzert: Bemanne einen <b>Geschützturm</b> oder steig auf der
+      Landeplattform hinter dem Graben in einen <b>Schneegleiter</b>. Flieg tief an ein AT-AT heran und feuere das
+      <b>Schleppkabel</b> ab, um es zu Fall zu bringen.<br>
+      <b>PC:</b> WASD bewegen · Maus zielen · Linksklick feuern · Shift sprinten · Leertaste springen · E benutzen/aussteigen · F Schleppkabel · W/S Schub im Gleiter · Esc Pause<br>
+      <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten (dabei weiter zielen) · E = Turm/Gleiter · KABEL = Schleppkabel
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <div class="panel" style="width:min(420px,100%)">
+    <h1>PAUSE</h1>
+    <div class="btns"><button id="resumeBtn">WEITER</button><button id="quitBtn" class="sec">HAUPTMENÜ</button></div>
+  </div>
+</div>
+
+<div id="over" class="screen hidden">
+  <div class="panel" style="width:min(520px,100%)">
+    <h1 id="overTitle">SIEG</h1>
+    <div id="overText"></div>
+    <div class="btns"><button id="againBtn">NOCHMAL</button><button id="menuBtn" class="sec">HAUPTMENÜ</button></div>
+  </div>
+</div>
+
+<script src="three.min.js"></script>
+<script src="world.js"></script>
+<script src="units.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
