@@ -11,13 +11,14 @@ const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _one = new V3(1, 1, 1
 // Globaler Spielzustand (wird in game.js befüllt)
 const G = {
   scene: null, dyn: null, time: 0,
-  rebels: [], imps: [], atats: [], atsts: [], turrets: [], speeders: [], bolts: [],
+  rebels: [], imps: [], atats: [], atsts: [], turrets: [], speeders: [], bolts: [], grenades: [],
   player: null, genHP: 150, genMax: 150,
   diff: { spread: 0.04, rate: 1 },
   msg: () => {}, onPlayerHit: () => {}, onKill: () => {}, hitMarker: () => {}, onPilotDown: () => {},
   // Mehrspieler: alle menschlichen Spieler (lokal + entfernte Avatare beim Host)
   players: [],
   netHook: null,          // wird bei jedem neuen Laserschuss aufgerufen (Host: an Clients senden)
+  netNadeHook: null,      // dasselbe für Thermaldetonatoren
   visualOnly: false,      // Client: Spiellogik läuft beim Host, hier nur Darstellung
   creditKill: (pl) => { pl.kills++; },
   onRemoteDown: () => {}, onRemoteEject: () => {},
@@ -35,7 +36,54 @@ const KIND = [
   { speed: 105, len: 5.0, w: 0.32, splash: 5, atst: 0, atat: 0, struct: 2, veh: 2, life: 3.5 },     // 2 AT-AT Kanone
   { speed: 160, len: 3.2, w: 0.22, splash: 3, atst: 1, atat: 1, struct: 0, veh: 0, life: 2.5 },     // 3 Geschützturm
   { speed: 230, len: 2.8, w: 0.12, splash: 1.8, atst: 1, atat: 0.25, struct: 0, veh: 0, life: 2 },  // 4 Schneegleiter
+  { speed: 320, len: 3.4, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 2.2 },     // 5 Präzisionsgewehr
+  { speed: 135, len: 1.3, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.8 },     // 6 Repetierblaster
 ];
+
+// ---------------------------------------------------------------- Thermaldetonatoren
+let NADE_GEO = null;
+class Grenade {
+  constructor(f, p, v, owner) {
+    this.f = f; this.p = p.clone(); this.v = v.clone(); this.owner = owner; this.fuse = 2.4; this.bounces = 0;
+    if (!NADE_GEO) NADE_GEO = mergeGeos([gSph(0.11, 0, 0, 0, 0x55595f, 1, 1, 1, 12), gCyl(0.115, 0.115, 0.03, 12, 0, 0, 0, 0x2a2c30)]);
+    this.mesh = new THREE.Mesh(NADE_GEO, MAT.vehicle); this.mesh.castShadow = true;
+    this.led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(8, 0.4, 0.2) }));
+    this.led.position.y = 0.1; this.mesh.add(this.led);
+    this.mesh.position.copy(this.p);
+    G.dyn.add(this.mesh);
+  }
+}
+function throwGrenade(f, p, v, owner, fromNet) {
+  const g = new Grenade(f, p, v, owner);
+  G.grenades.push(g);
+  if (G.netNadeHook && !fromNet) G.netNadeHook(g);
+  SFX.toss(p);
+  return g;
+}
+function updateGrenades(dt) {
+  const list = G.grenades;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const g = list[i];
+    g.v.y -= 9.8 * dt;
+    g.p.addScaledVector(g.v, dt);
+    const gh = heightAt(g.p.x, g.p.z) + 0.1;
+    if (g.p.y < gh) {               // abprallen und ausrollen
+      g.p.y = gh;
+      if (g.v.y < -1.5 && g.bounces < 4) { g.bounces++; SFX.impact(g.p); }
+      g.v.y = Math.abs(g.v.y) * 0.32; g.v.x *= 0.55; g.v.z *= 0.55;
+    }
+    g.fuse -= dt;
+    g.mesh.position.copy(g.p);
+    g.mesh.rotation.x += g.v.length() * dt * 2;
+    g.led.visible = Math.sin(g.fuse * (g.fuse < 0.8 ? 40 : 14)) > 0;
+    if (g.fuse <= 0) {
+      G.dyn.remove(g.mesh); list.splice(i, 1);
+      _v3.copy(g.p); _v3.y += 0.3;
+      if (G.visualOnly) { FX.explosion(_v3, 2.7); SFX.boom(_v3, 2.2); }
+      else explode(_v3, 4.5, g.f, g.owner, null);
+    }
+  }
+}
 
 // ---------------------------------------------------------------- Soldaten-Modelle
 function soldierGeos(f) {

@@ -303,6 +303,13 @@ NET.installHooks = function () {
       NET.send({ t: 'fire', k: b.kind, f: b.f, o: [r(b.p.x), r(b.p.y), r(b.p.z)], d: [b.dir.x, b.dir.y, b.dir.z] });
     }
   };
+  // Thermaldetonatoren: Host verteilt jeden Wurf, Clients melden ihre eigenen Würfe
+  G.netNadeHook = (g) => {
+    const r = (v) => Math.round(v * 100) / 100;
+    const o = [r(g.p.x), r(g.p.y), r(g.p.z)], v = [r(g.v.x), r(g.v.y), r(g.v.z)];
+    if (NET.mode === 'host') NET.broadcast({ t: 'g', f: g.f, o, v, ex: g.owner && g.owner.remote ? g.owner.id : -1 });
+    else if (g.owner === P) NET.send({ t: 'nade', f: g.f, o, v });
+  };
   if (NET.mode === 'host' && !NET.origMsg) {
     NET.origMsg = G.msg;
     G.msg = (text, key) => { NET.origMsg(text, key); if (GLOBAL_MSG.has(key)) NET.broadcast({ t: 'msg', x: text, k: key }); };
@@ -310,7 +317,7 @@ NET.installHooks = function () {
 };
 NET.endNetGame = function () {
   NET.inGame = false;
-  G.netHook = null; G.visualOnly = false; G.players = [P];
+  G.netHook = null; G.netNadeHook = null; G.visualOnly = false; G.players = [P];
   if (NET.origMsg) { G.msg = NET.origMsg; NET.origMsg = null; }
   for (const av of NET.avatars.values()) av.dispose();
   NET.avatars.clear();
@@ -450,6 +457,10 @@ NET.onHostMsg = function (id, m) {
       { const o = new THREE.Vector3(m.o[0], m.o[1], m.o[2]), d = new THREE.Vector3(m.d[0], m.d[1], m.d[2]).normalize();
         fireBolt(m.k, m.f === IMP ? IMP : REB, o, o.clone().addScaledVector(d, 100), 0, av); }
       break;
+    case 'nade':
+      if (!av || !NET.inGame || !Array.isArray(m.o) || !Array.isArray(m.v) || !m.o.concat(m.v).every(isFinite)) return;
+      throwGrenade(av.faction, new THREE.Vector3(m.o[0], m.o[1], m.o[2]), new THREE.Vector3(m.v[0], m.v[1], m.v[2]).clampLength(0, 30), av);
+      break;
     case 'tow': {
       if (!av || !NET.inGame) return;
       const sp = G.speeders[m.i], a = G.atats[m.a];
@@ -588,6 +599,10 @@ NET.onClientMsg = function (m) {
         const o = new THREE.Vector3(m.l[k + 2], m.l[k + 3], m.l[k + 4]);
         fireBolt(m.l[k], m.l[k + 1], o, o.clone().add(_v1.set(m.l[k + 5], m.l[k + 6], m.l[k + 7]).multiplyScalar(100)), 0, null, true);
       }
+      break;
+    case 'g':
+      if (!NET.inGame || m.ex === NET.myId || !m.o || !m.v) break;
+      throwGrenade(m.f === IMP ? IMP : REB, new THREE.Vector3(m.o[0], m.o[1], m.o[2]), new THREE.Vector3(m.v[0], m.v[1], m.v[2]), null, true);
       break;
     case 'die': if (NET.inGame) killPlayer(m.c || 'Getroffen'); break;
     case 'hit': G.hitMarker(P); break;

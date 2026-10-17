@@ -35,13 +35,13 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 5
-VERSION_NAME = '1.4'
+VERSION_CODE = 6
+VERSION_NAME = '1.5'
 RELEASE_NOTES = [
-    'LAN-Mehrspieler: Spiel eröffnen oder im selben Netzwerk beitreten, Rebellen und Imperium gemischt',
-    'Mitspieler mit Namensschild, gemeinsame Schlacht mit KI, Fahrzeuge (AT-ST, AT-AT, Schneegleiter, Türme) für alle',
-    'Beitritt in laufende Schlachten möglich, Zuschauen nach dem letzten Leben',
-    'Controller: A/B/X/Y nach Nintendo-Beschriftung (umstellbar auf Xbox/PlayStation)',
+    'Waffenauswahl: Blastergewehr, Repetierblaster, Präzisionsgewehr und Thermaldetonator',
+    'Jede Waffe mit eigenem Modell, Sound, Feuerrate, Überhitzung und Zoom (Präzisionsgewehr mit starkem Zielfernrohr)',
+    'Thermaldetonatoren: 3 pro Leben, Bogenwurf mit Abprallen und Flächenwirkung gegen Soldaten – auch im Mehrspieler',
+    'Wechseln mit 1–4/Mausrad, Controller Y oder Steuerkreuz links/rechts, Antippen der Waffenleiste',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

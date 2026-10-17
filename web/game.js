@@ -164,39 +164,78 @@ function updateSun() {
 }
 window.addEventListener('resize', onResize);
 
-// Waffe in der Hand (Ego-Ansicht)
+// ---------------------------------------------------------------- Waffen
+//  kind = Lasertyp (KIND in units.js), rate = Sekunden zwischen Schüssen, heat = Hitze pro Schuss,
+//  hip/ads = Streuung aus der Hüfte / mit Visier, zoom = Sichtfeld beim Zielen, scope = Zielfernrohr-Bild
+const WEAPONS = [
+  { names: ['A280-Blastergewehr', 'E-11-Blastergewehr'], short: 'Gewehr', kind: 0, rate: 0.17, heat: 0.075, hip: 0.012, ads: 0.0008, zoom: 28, scope: true, range: 320, cool: 1.6 },
+  { names: ['Z-6-Rotationsblaster', 'DLT-19-Repetierblaster'], short: 'Repetierer', kind: 6, rate: 0.075, heat: 0.042, hip: 0.03, ads: 0.014, zoom: 50, scope: false, range: 260, cool: 2.4 },
+  { names: ['DLT-20A-Präzisionsgewehr', 'E-11s-Präzisionsgewehr'], short: 'Präzision', kind: 5, rate: 0.9, heat: 0.3, hip: 0.03, ads: 0, zoom: 11, scope: true, range: 650, cool: 2 },
+  { names: ['Thermaldetonator', 'Thermaldetonator'], short: 'Detonator', nade: true, rate: 0.9, zoom: 72 },
+];
+const NADES_PER_LIFE = 3;
+
+// Ego-Ansicht: ein Modell je Seite und Waffe; tip = Laufmündung
 const gun = new THREE.Group();
+const gunModels = [[], []];
 {
   const H = Math.PI / 2;
-  const gm = vcMesh([
-    gBox(0.065, 0.085, 0.42, 0, 0, -0.06, 0x2a2c30), gBox(0.05, 0.12, 0.2, 0, -0.06, 0.18, 0x4a3a2c),
-    gCyl(0.028, 0.028, 0.36, 12, 0, 0.012, -0.44, 0x1c1d20, H), gCyl(0.018, 0.018, 0.08, 10, 0, 0.012, -0.66, 0x111214, H),
-    gBox(0.02, 0.03, 0.02, 0, 0.05, -0.56, 0x1c1d20), gCyl(0.018, 0.018, 0.18, 10, 0, 0.07, -0.08, 0x3a3d42, H),
-    gBox(0.03, 0.05, 0.16, -0.045, -0.01, -0.18, 0x1c1d20),
-    gBox(0.04, 0.085, 0.045, 0, -0.08, -0.12, 0x26282b), gBox(0.016, 0.02, 0.06, 0.04, 0.03, -0.25, 0xd9541e),
-    gBox(0.1, 0.075, 0.18, -0.025, -0.07, 0.06, 0xcfc3a6), gSph(0.045, -0.025, -0.09, 0.12, 0x6b5a48),
-  ], MAT.gun);
-  gm.castShadow = false;
-  // E-11 der Sturmtruppen (schwarz, weißer Panzerhandschuh)
-  const ge = vcMesh([
-    gBox(0.06, 0.08, 0.36, 0, 0, -0.08, 0x18191b), gCyl(0.032, 0.032, 0.3, 12, 0, 0.01, -0.36, 0x222326, H),
-    gCyl(0.02, 0.02, 0.06, 10, 0, 0.01, -0.54, 0x0e0e0f, H), gCyl(0.017, 0.017, 0.2, 10, 0, 0.068, -0.1, 0x3a3d42, H),
-    gBox(0.022, 0.07, 0.07, -0.042, -0.035, -0.12, 0x18191b), gBox(0.04, 0.09, 0.045, 0, -0.08, -0.04, 0x18191b),
-    gBox(0.02, 0.02, 0.18, 0, -0.02, 0.12, 0x2a2b2e), gBox(0.1, 0.08, 0.17, -0.025, -0.07, 0.05, 0xf2f2f2), gSph(0.045, -0.025, -0.09, 0.0, 0x1a1a1a),
-  ], MAT.gun);
-  ge.castShadow = false; ge.visible = false;
-  gun.add(gm); gun.add(ge);
-  gun.userData = { reb: gm, imp: ge };
+  const mk = (parts, tip) => { const m = vcMesh(parts, MAT.gun); m.castShadow = false; m.visible = false; m.userData.tip = tip; gun.add(m); return m; };
+  const nade = (glove) => mk([gSph(0.075, 0.0, -0.02, -0.2, 0x55595f, 1, 1, 1, 14), gCyl(0.077, 0.077, 0.025, 14, 0, -0.02, -0.2, 0x2a2c30),
+    gBox(0.03, 0.02, 0.02, 0, 0.055, -0.2, 0xd9541e), gBox(0.11, 0.08, 0.17, -0.02, -0.07, -0.06, glove), gSph(0.05, -0.02, -0.07, -0.16, glove)], -0.2);
+  // Rebellen
+  gunModels[REB] = [
+    mk([gBox(0.065, 0.085, 0.42, 0, 0, -0.06, 0x2a2c30), gBox(0.05, 0.12, 0.2, 0, -0.06, 0.18, 0x4a3a2c),
+      gCyl(0.028, 0.028, 0.36, 12, 0, 0.012, -0.44, 0x1c1d20, H), gCyl(0.018, 0.018, 0.08, 10, 0, 0.012, -0.66, 0x111214, H),
+      gBox(0.02, 0.03, 0.02, 0, 0.05, -0.56, 0x1c1d20), gCyl(0.018, 0.018, 0.18, 10, 0, 0.07, -0.08, 0x3a3d42, H),
+      gBox(0.03, 0.05, 0.16, -0.045, -0.01, -0.18, 0x1c1d20), gBox(0.04, 0.085, 0.045, 0, -0.08, -0.12, 0x26282b),
+      gBox(0.016, 0.02, 0.06, 0.04, 0.03, -0.25, 0xd9541e), gBox(0.1, 0.075, 0.18, -0.025, -0.07, 0.06, 0xcfc3a6), gSph(0.045, -0.025, -0.09, 0.12, 0x6b5a48)], -0.72),
+    mk([gBox(0.1, 0.11, 0.38, 0, -0.01, -0.02, 0x34373c), gCyl(0.05, 0.05, 0.12, 14, 0, 0.0, -0.26, 0x24262a, H),
+      gBox(0.03, 0.06, 0.2, 0, 0.09, -0.04, 0x24262a), gBox(0.08, 0.1, 0.12, 0, -0.1, 0.06, 0x5a4632), gBox(0.04, 0.09, 0.05, 0, -0.09, -0.1, 0x24262a),
+      gBox(0.11, 0.075, 0.18, -0.03, -0.07, 0.1, 0xcfc3a6), gSph(0.045, -0.03, -0.09, 0.16, 0x6b5a48)], -0.78),
+    mk([gBox(0.055, 0.08, 0.5, 0, 0, -0.02, 0x3a2f24), gBox(0.05, 0.11, 0.2, 0, -0.05, 0.24, 0x4a3a2c),
+      gCyl(0.02, 0.02, 0.62, 12, 0, 0.012, -0.58, 0x1c1d20, H), gCyl(0.03, 0.03, 0.06, 12, 0, 0.012, -0.9, 0x111214, H),
+      gCyl(0.028, 0.028, 0.3, 12, 0, 0.085, -0.1, 0x2a2c30, H), gCyl(0.034, 0.034, 0.03, 12, 0, 0.085, -0.26, 0x101418, H),
+      gBox(0.04, 0.085, 0.045, 0, -0.08, -0.08, 0x26282b), gBox(0.1, 0.075, 0.18, -0.025, -0.07, 0.1, 0xcfc3a6), gSph(0.045, -0.025, -0.09, 0.16, 0x6b5a48)], -0.95),
+    nade(0xcfc3a6),
+  ];
+  // Imperium (schwarze Waffen, weißer Panzerhandschuh)
+  gunModels[IMP] = [
+    mk([gBox(0.06, 0.08, 0.36, 0, 0, -0.08, 0x18191b), gCyl(0.032, 0.032, 0.3, 12, 0, 0.01, -0.36, 0x222326, H),
+      gCyl(0.02, 0.02, 0.06, 10, 0, 0.01, -0.54, 0x0e0e0f, H), gCyl(0.017, 0.017, 0.2, 10, 0, 0.068, -0.1, 0x3a3d42, H),
+      gBox(0.022, 0.07, 0.07, -0.042, -0.035, -0.12, 0x18191b), gBox(0.04, 0.09, 0.045, 0, -0.08, -0.04, 0x18191b),
+      gBox(0.02, 0.02, 0.18, 0, -0.02, 0.12, 0x2a2b2e), gBox(0.1, 0.08, 0.17, -0.025, -0.07, 0.05, 0xf2f2f2), gSph(0.045, -0.025, -0.09, 0.0, 0x1a1a1a)], -0.58),
+    mk([gBox(0.07, 0.09, 0.5, 0, 0, -0.1, 0x18191b), gCyl(0.03, 0.03, 0.45, 12, 0, 0.01, -0.55, 0x222326, H),
+      gCyl(0.04, 0.04, 0.02, 12, 0, 0.01, -0.4, 0x3a3d42, H), gCyl(0.04, 0.04, 0.02, 12, 0, 0.01, -0.5, 0x3a3d42, H), gCyl(0.04, 0.04, 0.02, 12, 0, 0.01, -0.6, 0x3a3d42, H),
+      gBox(0.012, 0.12, 0.012, 0.03, -0.07, -0.7, 0x2a2b2e, 0.3), gBox(0.012, 0.12, 0.012, -0.03, -0.07, -0.7, 0x2a2b2e, 0.3),
+      gBox(0.04, 0.09, 0.045, 0, -0.08, -0.05, 0x18191b), gBox(0.1, 0.08, 0.17, -0.025, -0.07, 0.07, 0xf2f2f2), gSph(0.045, -0.025, -0.09, 0.02, 0x1a1a1a)], -0.8),
+    mk([gBox(0.06, 0.08, 0.4, 0, 0, -0.08, 0x18191b), gCyl(0.024, 0.024, 0.55, 12, 0, 0.01, -0.5, 0x222326, H),
+      gCyl(0.03, 0.03, 0.05, 10, 0, 0.01, -0.8, 0x0e0e0f, H), gCyl(0.03, 0.03, 0.3, 12, 0, 0.085, -0.12, 0x2a2c30, H),
+      gCyl(0.036, 0.036, 0.03, 12, 0, 0.085, -0.28, 0x101418, H), gBox(0.04, 0.09, 0.045, 0, -0.08, -0.04, 0x18191b),
+      gBox(0.1, 0.08, 0.17, -0.025, -0.07, 0.05, 0xf2f2f2), gSph(0.045, -0.025, -0.09, 0.0, 0x1a1a1a)], -0.85),
+    nade(0xf2f2f2),
+  ];
+  // Rotierende Laufgruppe des Z-6
+  const barrels = [];
+  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; barrels.push(gCyl(0.012, 0.012, 0.45, 8, Math.cos(a) * 0.028, Math.sin(a) * 0.028, -0.5, 0x1a1b1d, H)); }
+  barrels.push(gCyl(0.045, 0.045, 0.02, 12, 0, 0, -0.68, 0x2a2c30, H));
+  const spin = new THREE.Mesh(mergeGeos(barrels), MAT.gun); spin.castShadow = false;
+  gunModels[REB][1].add(spin); gunModels[REB][1].userData.spin = spin;
 }
 gun.position.set(0.13, -0.12, -0.3); gun.scale.setScalar(IS_TOUCH ? 0.34 : 0.4); gun.rotation.y = 0.06;
 const gunTip = new THREE.Object3D(); gunTip.position.set(0, 0.012, -0.72); gun.add(gunTip);
-function setGunFaction(f) { gun.userData.reb.visible = f === REB; gun.userData.imp.visible = f === IMP; gunTip.position.z = f === IMP ? -0.58 : -0.72; }
+function setGunModel(f, w) {
+  gunModels.forEach((list, ff) => list.forEach((m, ww) => { m.visible = ff === f && ww === w; }));
+  gunTip.position.z = gunModels[f][w].userData.tip;
+}
+function setGunFaction(f) { setGunModel(f, P.weapon); }
 camera.add(gun);
 
 // ---------------------------------------------------------------- Spieler
 const P = G.player = {
   type: 'player', faction: REB, mode: 'spectate', alive: false, pos: new V3(), yaw: 0, pitch: 0, vy: 0, onGround: true, walker: null,
   lives: 0, kills: 0, heat: 0, overheat: 0, fireCd: 0, respawnT: 0, turret: null, speeder: null,
+  weapon: 0, heats: [0, 0, 0, 0], overheats: [0, 0, 0, 0], nades: NADES_PER_LIFE, switchT: 0, spin: 0,
   bob: 0, recoil: 0, god: 0, deathCause: '',
   exitTurret(destroyed) {
     const t = this.turret; if (!t) return;
@@ -239,9 +278,22 @@ function spawnPlayer(first) {
   }
   P.pos.y = heightAt(P.pos.x, P.pos.z);
   P.pitch = 0.03; P.vy = 0; P.mode = 'foot'; P.alive = true; P.heat = 0; P.overheat = 0;
+  P.heats.fill(0); P.overheats.fill(0); P.nades = NADES_PER_LIFE; P.switchT = 0;
   P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null; P.walker = null;
   input.zoomToggle = false;
   $('dead').classList.add('hidden');
+}
+
+// Waffe wechseln (0..3); Hitze und Überhitzung bleiben je Waffe erhalten
+function selectWeapon(w) {
+  w = ((w % WEAPONS.length) + WEAPONS.length) % WEAPONS.length;
+  if (w === P.weapon) return;
+  P.heats[P.weapon] = P.heat; P.overheats[P.weapon] = P.overheat;
+  P.weapon = w; P.heat = P.heats[w]; P.overheat = P.overheats[w];
+  P.switchT = 0.35; P.fireCd = Math.max(P.fireCd, 0.3);
+  input.zoomToggle = false;
+  setGunModel(P.faction, w);
+  SFX.click();
 }
 
 function killPlayer(cause, where) {
@@ -288,7 +340,7 @@ G.msg = (text, key) => {
 };
 
 // ---------------------------------------------------------------- Eingabe
-const input = { keys: {}, mouseFire: false, touchFire: false, lookDX: 0, lookDY: 0, joyX: 0, joyY: 0, use: false, jump: false, harpoon: false, zoomHeld: false, zoomToggle: false };
+const input = { keys: {}, mouseFire: false, touchFire: false, lookDX: 0, lookDY: 0, joyX: 0, joyY: 0, use: false, jump: false, harpoon: false, zoomHeld: false, zoomToggle: false, weaponSel: -1, weaponStep: 0 };
 let pointerLocked = false;
 
 window.addEventListener('keydown', (e) => {
@@ -297,6 +349,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') input.use = true;
   if (e.code === 'KeyF') input.harpoon = true;
   if (e.code === 'KeyQ') input.zoomToggle = !input.zoomToggle;
+  if (/^Digit[1-4]$/.test(e.code)) input.weaponSel = +e.code.slice(5) - 1;
   if (e.code === 'Space') { input.jump = true; e.preventDefault(); }
   if (e.code === 'Escape' || e.code === 'KeyP') pause();
 });
@@ -312,6 +365,7 @@ canvas.addEventListener('mousedown', (e) => {
 window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouseFire = false; if (e.button === 2) input.zoomHeld = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('mousemove', (e) => { if (pointerLocked) { input.lookDX += e.movementX; input.lookDY += e.movementY; } });
+window.addEventListener('wheel', (e) => { if (state === 'playing' && Math.abs(e.deltaY) > 1) input.weaponStep += Math.sign(e.deltaY); }, { passive: true });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = document.pointerLockElement === canvas;
   if (!pointerLocked && state === 'playing' && !IS_TOUCH) pause();
@@ -331,6 +385,8 @@ function touchStart(e) {
     if (id === 'bUse') { input.use = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'btn', el: btn }; continue; }
     if (id === 'bHarp') { input.harpoon = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'btn', el: btn }; continue; }
     if (id === 'bZoom') { input.zoomToggle = !input.zoomToggle; touches[t.identifier] = { kind: 'btn' }; continue; }
+    const slot = t.target.closest && t.target.closest('.wslot');
+    if (slot) { input.weaponSel = +slot.dataset.w; touches[t.identifier] = { kind: 'btn' }; continue; }
     if (id === 'bFire') { input.touchFire = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'fire', el: btn, x: t.clientX, y: t.clientY }; continue; }
     if (t.clientX < window.innerWidth * 0.42 && !Object.values(touches).some(o => o.kind === 'joy')) {
       touches[t.identifier] = { kind: 'joy', bx: t.clientX, by: t.clientY };
@@ -371,7 +427,7 @@ window.addEventListener('touchcancel', touchEnd);
 function resetInput() {
   for (const k in touches) delete touches[k];
   input.touchFire = input.mouseFire = false; input.joyX = input.joyY = 0; input.lookDX = input.lookDY = 0;
-  input.use = input.jump = input.harpoon = false; input.keys = {}; input.zoomHeld = false;
+  input.use = input.jump = input.harpoon = false; input.keys = {}; input.zoomHeld = false; input.weaponSel = -1; input.weaponStep = 0;
   document.querySelectorAll('.tbtn.on').forEach(b => b.classList.remove('on'));
   $('joyBase').style.display = 'none';
 }
@@ -452,11 +508,11 @@ function nearestTowable(sp) {
 let zoomT = 0;
 const BASE_FOV = 72;
 function updateZoom(dt) {
-  const can = P.mode === 'foot' || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder';
+  const can = (P.mode === 'foot' && !WEAPONS[P.weapon].nade) || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder';
   if (!can) input.zoomToggle = false;
   const want = can && (input.zoomHeld || input.zoomToggle || PAD.zoom());
   zoomT = clamp(zoomT + (want ? dt * 7 : -dt * 7), 0, 1);
-  const zf = P.mode === 'foot' ? 28 : P.mode === 'speeder' ? 52 : 22;
+  const zf = P.mode === 'foot' ? WEAPONS[P.weapon].zoom : P.mode === 'speeder' ? 52 : 22;
   const fov = lerp(BASE_FOV, zf, smooth(0, 1, zoomT));
   if (Math.abs(fov - camera.fov) > 0.01) {
     camera.fov = fov; camera.updateProjectionMatrix();
@@ -480,12 +536,27 @@ function updatePlayer(dt) {
   // Controller-Tasten: A springen, B benutzen/einsteigen, Y Schleppkabel, X Visier umschalten, Start/Select Pause
   if (PAD.take('x')) input.zoomToggle = !input.zoomToggle;
   if (PAD.take('start') || PAD.take('select')) { pause(); return; }
-  const use = input.use || PAD.take('b'), jump = input.jump || PAD.take('a'), harpoon = input.harpoon || PAD.take('y');
+  const padY = PAD.take('y');
+  const use = input.use || PAD.take('b'), jump = input.jump || PAD.take('a'), harpoon = input.harpoon || (padY && P.mode === 'speeder');
+  // Waffenwahl: 1-4, Mausrad, Y oder Steuerkreuz links/rechts, Antippen in der Waffenleiste
+  const dR = PAD.take('dright'), dL = PAD.take('dleft');
+  if (P.mode === 'foot') {
+    if (input.weaponSel >= 0) selectWeapon(input.weaponSel);
+    if (input.weaponStep) selectWeapon(P.weapon + Math.sign(input.weaponStep));
+    if (padY || dR) selectWeapon(P.weapon + 1);
+    if (dL) selectWeapon(P.weapon - 1);
+  }
+  input.weaponSel = -1; input.weaponStep = 0;
   input.use = input.jump = input.harpoon = false;
   P.god = Math.max(0, P.god - dt);
   P.fireCd -= dt;
   if (P.overheat > 0) { P.overheat -= dt; if (P.overheat <= 0) P.heat = 0.3; }
   P.heat = Math.max(0, P.heat - dt * (firing ? 0.18 : 0.45));
+  for (let w = 0; w < WEAPONS.length; w++) if (w !== P.weapon) {    // nicht getragene Waffen kühlen ab
+    P.heats[w] = Math.max(0, P.heats[w] - dt * 0.45);
+    if (P.overheats[w] > 0) { P.overheats[w] -= dt; if (P.overheats[w] <= 0) P.heats[w] = 0.3; }
+  }
+  P.switchT = Math.max(0, P.switchT - dt);
   P.recoil = Math.max(0, P.recoil - dt * 6);
   const prompts = [];
 
@@ -536,21 +607,37 @@ function updatePlayer(dt) {
     camera.position.set(P.pos.x, P.pos.y + 1.62 + bobY * (1 - zoomT), P.pos.z);
     camera.rotation.set(P.pitch, P.yaw, 0);
     // Waffe beim Zielen zur Bildmitte (über Kimme und Korn), voll gezoomt blickt man durchs Zielfernrohr
-    const z = smooth(0, 1, zoomT);
-    gun.visible = zoomT < 0.85;
-    gun.position.set(lerp(0.13, 0.0, z) + Math.cos(P.bob * 0.5) * 0.005 * (1 - z), lerp(-0.12, -0.075, z) + bobY * 0.15, lerp(-0.3, -0.24, z) + P.recoil * 0.025);
-    gun.rotation.set(P.recoil * 0.12, lerp(0.06, 0, z), 0);
-    // Feuern (aus der Hüfte ungenauer als mit Visier)
-    if (firing && P.fireCd <= 0 && P.overheat <= 0) {
-      P.fireCd = 0.17; P.heat += 0.075; P.recoil = 1;
-      if (P.heat >= 1) { P.heat = 1; P.overheat = 1.6; G.msg('Blaster überhitzt!', 'heat'); }
+    const z = smooth(0, 1, zoomT), W = WEAPONS[P.weapon];
+    const sw = P.switchT / 0.35;          // Waffenwechsel: Waffe kurz absenken
+    gun.visible = zoomT < 0.85 || !W.scope;
+    gun.position.set(lerp(0.13, 0.0, z) + Math.cos(P.bob * 0.5) * 0.005 * (1 - z), lerp(-0.12, -0.075, z) + bobY * 0.15 - sw * sw * 0.12,
+      lerp(-0.3, -0.24, z) + P.recoil * (W.kind === 5 ? 0.06 : 0.025));
+    gun.rotation.set(P.recoil * (W.kind === 5 ? 0.3 : 0.12) - sw * 0.6, lerp(0.06, 0, z), 0);
+    const spin = gunModels[P.faction][P.weapon].userData.spin;
+    P.spin = firing && !W.nade ? Math.min(1, P.spin + dt * 4) : Math.max(0, P.spin - dt * 1.5);
+    if (spin) spin.rotation.z += P.spin * dt * 30;
+    if (W.nade) {
+      // Thermaldetonator werfen (Bogenwurf, Zünder ~2,4 s)
+      if (firing && P.fireCd <= 0 && P.switchT <= 0) {
+        if (P.nades > 0) {
+          P.fireCd = W.rate; P.nades--; P.recoil = 1;
+          camForward(_fwd);
+          _tmp.copy(camera.position).addScaledVector(_fwd, 0.5); _tmp.y -= 0.15;
+          _tmp2.copy(_fwd).multiplyScalar(12.5); _tmp2.y += 4;
+          throwGrenade(P.faction, _tmp, _tmp2, P);
+        } else if (P.fireCd <= 0) { P.fireCd = 0.6; G.msg('Keine Thermaldetonatoren mehr – nach dem Wiedereinstieg hast du wieder ' + NADES_PER_LIFE + '.', 'nonade'); }
+      }
+    } else if (firing && P.fireCd <= 0 && P.overheat <= 0 && P.switchT <= 0) {
+      // Feuern (aus der Hüfte ungenauer als mit Visier)
+      P.fireCd = W.rate; P.heat += W.heat; P.recoil = 1;
+      if (P.heat >= 1) { P.heat = 1; P.overheat = W.cool; G.msg(W.names[P.faction] + ' überhitzt!', 'heat'); }
       camera.updateMatrixWorld(true);
       camForward(_fwd);
-      const dist = aimDistance(camera.position, _fwd, 320);
+      const dist = aimDistance(camera.position, _fwd, W.range);
       _tmp2.copy(camera.position).addScaledVector(_fwd, dist);
-      if (zoomT > 0.85) _tmp.copy(camera.position).addScaledVector(_fwd, 0.6).y -= 0.08;
+      if (zoomT > 0.85 && W.scope) _tmp.copy(camera.position).addScaledVector(_fwd, 0.6).y -= 0.08;
       else gunTip.getWorldPosition(_tmp);
-      fireBolt(0, P.faction, _tmp, _tmp2, lerp(0.012, 0.0008, z), P);
+      fireBolt(W.kind, P.faction, _tmp, _tmp2, lerp(W.hip, W.ads, z), P);
     }
     const u = nearestUsable();
     if (u) {
@@ -678,15 +765,34 @@ function setPrompt(list) {
 }
 
 // ---------------------------------------------------------------- HUD
-let hudT = 0, radarT = 0;
+let hudT = 0, radarT = 0, lastWeaponKey = '#', wnameT = 0;
+$('weapons').addEventListener('click', (e) => { const sl = e.target.closest('.wslot'); if (sl && state === 'playing') input.weaponSel = +sl.dataset.w; });
 const radarCtx = $('radar').getContext('2d');
 function updateHUD(dt) {
   if (hitTimer > 0) { hitTimer -= dt; if (hitTimer <= 0) $('hit').classList.remove('on'); }
   const heat = $('heat');
   $('heatArc').style.strokeDashoffset = (100 - P.heat * 100).toFixed(1);
   heat.classList.toggle('over', P.overheat > 0);
-  heat.style.opacity = (P.mode === 'foot' || P.mode === 'turret' || P.mode === 'walker') && P.heat > 0.01 ? '1' : '0';
-  const scoped = P.mode === 'foot' && zoomT > 0.85;
+  heat.style.opacity = (P.mode === 'foot' ? !WEAPONS[P.weapon].nade : P.mode === 'turret' || P.mode === 'walker') && P.heat > 0.01 ? '1' : '0';
+  // Waffenleiste
+  const wb = $('weapons'), onFoot = P.mode === 'foot';
+  wb.style.display = onFoot ? '' : 'none';
+  const wkey = onFoot ? P.faction + ':' + P.weapon + ':' + P.nades + ':' + PAD.connected : '-';
+  if (wkey !== lastWeaponKey) {
+    const fi = P.faction === IMP ? 1 : 0;
+    if (onFoot && lastWeaponKey !== '#' && !lastWeaponKey.startsWith(P.faction + ':' + P.weapon + ':')) { $('wname').textContent = WEAPONS[P.weapon].names[fi]; $('wname').classList.add('on'); wnameT = 1.4; }
+    lastWeaponKey = wkey;
+    wb.classList.toggle('pad', PAD.connected);
+    wb.querySelectorAll('.wslot').forEach((el, i) => {
+      el.classList.toggle('on', i === P.weapon);
+      const W = WEAPONS[i];
+      el.title = W.names[fi];
+      el.querySelector('small').textContent = W.nade ? '×' + P.nades : '';
+      el.classList.toggle('empty', !!W.nade && P.nades <= 0);
+    });
+  }
+  if (wnameT > 0) { wnameT -= dt; if (wnameT <= 0) $('wname').classList.remove('on'); }
+  const scoped = P.mode === 'foot' && zoomT > 0.85 && WEAPONS[P.weapon].scope;
   $('scope').style.opacity = scoped ? '1' : '0';
   $('cross').className = P.mode === 'speeder' || P.mode === 'turret' || P.mode === 'walker' ? 'big' : '';
   $('cross').style.visibility = P.mode === 'dead' || scoped ? 'hidden' : 'visible';
@@ -745,7 +851,7 @@ function clearBattle() {
   for (const ch of G.dyn.children.slice()) { if (ch.isLine) ch.geometry.dispose(); G.dyn.remove(ch); }
   G.rebels = []; G.imps = []; G.atats = []; G.atsts = []; G.turrets = []; G.speeders = [];
   for (const b of G.bolts) boltPool.push(b);
-  G.bolts.length = 0; FX.clear(); G.time = 0;
+  G.bolts.length = 0; G.grenades.length = 0; FX.clear(); G.time = 0;
 }
 
 function setupBattle(cfg) {
@@ -793,7 +899,7 @@ function newGame(opts) {
   $('touch').classList.toggle('hidden', !IS_TOUCH);
   $('joyHint').style.display = '';
   $('msgs').innerHTML = '';
-  lastPrompt = '#';
+  lastPrompt = '#'; lastWeaponKey = '#';
   SFX.init();
   $('genName').textContent = P.faction === IMP ? 'Ziel: Schildgenerator' : 'Schildgenerator';
   G.msg(P.faction === IMP ? 'Zerstört den Schildgenerator! Steig mit E in ein AT-ST oder AT-AT.'
@@ -896,6 +1002,7 @@ function simulate(dt) {
   for (const t of G.turrets) t.update(dt);
   for (const s of G.speeders) s.update(dt);
   updateBolts(dt);
+  updateGrenades(dt);
 }
 // Client: Spiellogik läuft beim Host, hier nur Darstellung + eigenes Fahrzeug
 function clientSimulate(dt) {
@@ -909,6 +1016,7 @@ function clientSimulate(dt) {
   for (const t of G.turrets) t.update(dt);
   for (const s of G.speeders) s.update(dt);
   updateBolts(dt);
+  updateGrenades(dt);
 }
 function drawDynamic() {
   boltRed.begin(); boltGreen.begin();

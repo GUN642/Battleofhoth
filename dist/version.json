@@ -1,11 +1,11 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
+  "versionCode": 6,
+  "versionName": "1.5",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "LAN-Mehrspieler: Spiel eröffnen oder im selben Netzwerk beitreten, Rebellen und Imperium gemischt",
-    "Mitspieler mit Namensschild, gemeinsame Schlacht mit KI, Fahrzeuge (AT-ST, AT-AT, Schneegleiter, Türme) für alle",
-    "Beitritt in laufende Schlachten möglich, Zuschauen nach dem letzten Leben",
-    "Controller: A/B/X/Y nach Nintendo-Beschriftung (umstellbar auf Xbox/PlayStation)"
+    "Waffenauswahl: Blastergewehr, Repetierblaster, Präzisionsgewehr und Thermaldetonator",
+    "Jede Waffe mit eigenem Modell, Sound, Feuerrate, Überhitzung und Zoom (Präzisionsgewehr mit starkem Zielfernrohr)",
+    "Thermaldetonatoren: 3 pro Leben, Bogenwurf mit Abprallen und Flächenwirkung gegen Soldaten – auch im Mehrspieler",
+    "Wechseln mit 1–4/Mausrad, Controller Y oder Steuerkreuz links/rechts, Antippen der Waffenleiste"
   ]
 }

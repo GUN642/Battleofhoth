@@ -132,6 +132,20 @@ const SFX = {
         addChirp(o, sr, 0.02, 0.3, 5400, 0.045, 0.05, 0.1);
         addNoise(o, sr, 0, 0.3, 0.004, 0.9);
       }, 1.5, 350)),
+      // Präzisionsgewehr: langer, harter "Pew" mit tiefem Nachhall
+      sniper: variants(2, i => mk(0.7, o => {
+        addChirp(o, sr, 0, 1, 3400 + i * 200, 0.085, 0.16, 0.45);
+        addChirp(o, sr, 0.05, 0.4, 3000, 0.08, 0.14, 0.3);
+        addSweep(o, sr, 0, 0.35, 180, 70, 0.2, 0.1);
+        addNoise(o, sr, 0, 0.5, 0.006, 0.9);
+      }, 1.9, 120)),
+      // Repetierblaster: kurz und knackig
+      rep: variants(3, i => mk(0.2, o => {
+        addChirp(o, sr, 0, 1, 4300 + i * 300, 0.04, 0.045, 0.3);
+        addChirp(o, sr, 0.016, 0.3, 3900, 0.04, 0.04, 0.1);
+        addNoise(o, sr, 0, 0.45, 0.004, 0.85);
+      }, 1.7, 300)),
+      toss: [mk(0.3, o => { addNoise(o, sr, 0, 0.6, 0.09, 0.15); addSweep(o, sr, 0.02, 0.2, 900, 1500, 0.15, 0.06); })],
       boom: variants(3, () => mk(2.6, o => {
         addNoise(o, sr, 0, 1, 0.55, 0.035);
         addNoise(o, sr, 0, 0.6, 0.12, 0.25);
@@ -179,11 +193,13 @@ const SFX = {
     if (!this.ctx || this.budget < 1) return;
     this.budget -= 1;
     const B = this.bufs;
-    const set = kind === 0 ? (f === REB ? B.reb : B.imp) : kind === 1 ? B.atst : kind === 2 ? B.atat : kind === 3 ? B.turret : B.speeder;
-    const vol = [0.55, 0.8, 1.2, 0.85, 0.5][kind];
+    const set = kind === 0 ? (f === REB ? B.reb : B.imp) : kind === 1 ? B.atst : kind === 2 ? B.atat : kind === 3 ? B.turret
+      : kind === 5 ? B.sniper : kind === 6 ? B.rep : B.speeder;
+    const vol = [0.55, 0.8, 1.2, 0.85, 0.5, 0.75, 0.45][kind] || 0.5;
     this.play(pick(set), p, vol, rand(0.94, 1.06), kind === 2);
   },
   boom(p, size) { if (this.ctx) this.play(pick(this.bufs.boom), p, Math.min(1.6, 0.5 + size * 0.4), rand(0.85, 1.1) * (size > 2.5 ? 0.8 : 1), true); },
+  toss(p) { if (this.ctx) this.play(this.bufs.toss[0], p, 0.4, rand(0.9, 1.1)); },
   thump(p) { if (this.ctx) this.play(this.bufs.step[0], p, 1.6, rand(0.95, 1.05), true); },
   impact(p) { if (this.ctx && this.budget >= 1) { this.budget -= 0.5; this.play(pick(this.bufs.impact), p, 0.25, rand(0.8, 1.2)); } },
   click() {

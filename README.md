@@ -56,6 +56,20 @@ Version 1.0 hatte noch keine Update-Prüfung und muss einmalig von Hand durch 1.
   Schildgenerator können nur die Läufer beschädigen. Sieg: Schildgenerator zerstört oder alle Verteidiger
   ausgeschaltet. Niederlage: Angriffsstreitmacht vernichtet oder keine Leben mehr.
 
+### Waffen
+Zu Fuß stehen vier Waffen zur Wahl (Rebellen / Imperium jeweils mit eigenem Modell). Die Waffenleiste unten
+zeigt die aktive Waffe und die verbleibenden Thermaldetonatoren.
+
+| # | Waffe | Eigenschaften |
+|---|---|---|
+| 1 | A280- / E-11-Blastergewehr | Allrounder, mittlere Feuerrate, Visier mit Zielfernrohr |
+| 2 | Z-6-Rotationsblaster / DLT-19-Repetierblaster | sehr hohe Feuerrate, streut stärker, überhitzt schneller, Zoom ohne Zielfernrohr |
+| 3 | DLT-20A- / E-11s-Präzisionsgewehr | langsam, schnelle Bolzen mit großer Reichweite, starkes Zielfernrohr, aus der Hüfte ungenau |
+| 4 | Thermaldetonator | Wurfgranate im Bogen, prallt ab, explodiert nach ca. 2,4 s; tötet Soldaten im Umkreis, 3 pro Leben |
+
+Jede Blasterwaffe hat ihre eigene Hitzeanzeige; beim Wechseln kühlen die anderen ab. Läufer bleiben auch gegen
+Detonatoren immun – dafür braucht es weiterhin Türme oder Schneegleiter.
+
 Im Hauptmenü lässt sich einstellen: Anzahl der Rebellen (dein Team), Sturmtruppen, AT-ST, AT-AT,
 KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlichkeit und Grafik.
 
@@ -68,6 +82,7 @@ KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlich
 | Visier/Zoom | ZOOM | rechte Maustaste halten oder Q |
 | Turm/Gleiter/Läufer benutzen, aussteigen | E | E |
 | Schleppkabel | KABEL | F |
+| Waffe wählen | Waffenleiste unten antippen | 1–4 oder Mausrad |
 | Schub im Gleiter | Joystick vor/zurück | W/S |
 | Pause | II oder Zurück-Taste | Esc |
 
@@ -83,7 +98,8 @@ Xbox- oder PlayStation-Controller per Bluetooth). Es erscheint mit Banner auf de
 | Visier/Zoom | ZL / L halten, X umschalten |
 | Springen | A |
 | Benutzen / einsteigen / aussteigen | B |
-| Schleppkabel | Y |
+| Waffe wechseln | Y (zu Fuß) oder Steuerkreuz links/rechts |
+| Schleppkabel | Y (im Schneegleiter) |
 | Sprinten | linken Stick drücken |
 | Pause | + oder − |
 

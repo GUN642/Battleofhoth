@@ -18,8 +18,11 @@ const PAD = {
   web: { axes: [0, 0, 0, 0], lt: 0, rt: 0, btn: {} },  // Gamepad-API
   edges: new Set(),          // im Spiel gedrückte Tasten (werden von game.js abgeholt)
   connected: false,
-  dirHeld: null, dirT: 0,
+  dirHeld: null, dirT: 0, dl: false, dr: false,
   down(n) { return !!(this.nat.btn[n] || this.web.btn[n]); },
+  // Steuerkreuz-Kante; manche Controller melden das Kreuz doppelt (Taste + Achse) -> kurz entprellen
+  dT: {},
+  dEdge(n) { const t = performance.now(); if (t - (this.dT[n] || 0) > 90) this.edges.add(n); this.dT[n] = t; },
   take(n) { const had = this.edges.has(n); this.edges.delete(n); return had; },
   // Stick mit Totzone und weicher Kennlinie
   stick(x, y) {
@@ -57,9 +60,13 @@ window.hothPadKey = (code, down) => {
   PAD.nat.btn[n] = !!down;
   PAD.connected = true;
   if (down && !was && !DIRS.includes(n)) padPress(n);
+  if (down && !was && (n === 'left' || n === 'right') && !visibleScreen()) PAD.dEdge('d' + n);
 };
 window.hothPadAxes = (lx, ly, rx, ry, lt, rt, hx, hy) => {
   PAD.nat.axes = [lx, ly, rx, ry, lt, rt, hx, hy];
+  const b = PAD.nat.btn, inGame = !visibleScreen();
+  if (inGame && hx < -0.5 && !b.hatL) PAD.dEdge('dleft');
+  if (inGame && hx > 0.5 && !b.hatR) PAD.dEdge('dright');
   PAD.nat.btn.hatL = hx < -0.5; PAD.nat.btn.hatR = hx > 0.5; PAD.nat.btn.hatU = hy < -0.5; PAD.nat.btn.hatD = hy > 0.5;
   PAD.connected = true;
 };
@@ -209,7 +216,16 @@ function navLoop(now) {
   pollGamepadApi();
   const sc = visibleScreen();
   if (sc !== NAV.screen) navRefresh();
-  if (!sc) { PAD.dirHeld = null; return; }
+  if (!sc) {
+    PAD.dirHeld = null;
+    // Steuerkreuz links/rechts im Spiel: Waffe wechseln (nur Kreuz, nicht der Stick)
+    // (Android-Eingaben setzen die Kanten direkt in hothPadKey/hothPadAxes, hier nur die Gamepad-API)
+    const dl = !!PAD.web.btn.left, dr = !!PAD.web.btn.right;
+    if (dl && !PAD.dl) PAD.dEdge('dleft');
+    if (dr && !PAD.dr) PAD.dEdge('dright');
+    PAD.dl = dl; PAD.dr = dr;
+    return;
+  }
   PAD.edges.clear();
   // Steuerkreuz/Stick mit Wiederholung beim Halten
   const d = padDir();

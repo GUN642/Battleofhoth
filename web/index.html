@@ -59,8 +59,21 @@
   #scope .ret::after { top: 50%; left: 0; right: 0; height: 2px; margin-top: -1px; clip-path: polygon(0 0, 46% 0, 46% 100%, 0 100%, 0 0, 54% 0, 100% 0, 100% 100%, 54% 100%); }
   #scope .dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #ff3a22; box-shadow: 0 0 6px #ff3a22; }
   #scope .mil { position: absolute; left: 50%; top: 50%; width: 30%; height: 2px; transform: translate(-50%, 40px); background: repeating-linear-gradient(90deg, rgba(10,12,14,0.85) 0 2px, transparent 2px 18px); }
-  #prompt { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); font-size: clamp(12px, 2.4vmin, 17px); text-align: center; white-space: nowrap; }
+  #prompt { position: absolute; left: 50%; bottom: calc(max(8px, env(safe-area-inset-bottom)) + clamp(46px, 9.5vmin, 64px) + 10px); transform: translateX(-50%); font-size: clamp(12px, 2.4vmin, 17px); text-align: center; white-space: nowrap; }
   #prompt span { background: var(--glass2); border: 1px solid var(--line); padding: 6px 14px; border-radius: 999px; display: inline-block; margin: 2px; letter-spacing: 0.02em; }
+  #weapons { position: absolute; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; transition: opacity 0.2s; }
+  .wslot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: clamp(54px, 11vmin, 84px); height: clamp(46px, 9.5vmin, 64px); padding: 0 8px;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 10px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); opacity: 0.6; transition: opacity 0.15s, border-color 0.15s, transform 0.15s; cursor: pointer; }
+  .wslot svg { width: clamp(30px, 6.5vmin, 48px); height: clamp(14px, 3vmin, 22px); fill: #fff; opacity: 0.9; }
+  .wslot span { font-size: clamp(8px, 1.5vmin, 10px); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; white-space: nowrap; }
+  .wslot i { position: absolute; left: 5px; top: 3px; font-style: normal; font-size: clamp(8px, 1.4vmin, 10px); opacity: 0.6; }
+  .wslot small { position: absolute; right: 5px; top: 3px; font-size: clamp(9px, 1.6vmin, 12px); font-weight: 700; color: var(--acc); }
+  .wslot.on { opacity: 1; border-color: var(--acc); box-shadow: 0 0 14px rgba(255, 181, 71, 0.35); transform: translateY(-3px); }
+  .wslot.empty small { color: #ff6b5b; }
+  .pad .wslot i { display: none; }
+  #wname { position: absolute; left: 50%; bottom: calc(max(8px, env(safe-area-inset-bottom)) + clamp(46px, 9.5vmin, 64px) + clamp(46px, 8vmin, 56px)); transform: translateX(-50%); font-size: clamp(12px, 2.4vmin, 16px); font-weight: 700;
+    letter-spacing: 0.08em; text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity 0.4s; white-space: nowrap; }
+  #wname.on { opacity: 1; transition: none; }
   #msgs { position: absolute; top: 19%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; width: 92%; }
   #msgs div { font-size: clamp(12px, 2.4vmin, 17px); padding: 6px 16px; border-radius: 999px; background: linear-gradient(90deg, rgba(255, 181, 71, 0.0), rgba(20, 24, 32, 0.7) 15%, rgba(20, 24, 32, 0.7) 85%, rgba(255, 181, 71, 0)); color: #ffe2a8; text-shadow: 0 1px 2px #000; transition: opacity 0.6s, transform 0.6s; animation: pop 0.35s ease-out; }
   @keyframes pop { from { opacity: 0; transform: translateY(-8px) scale(0.96); } }
@@ -179,6 +192,8 @@
   <svg id="heat" viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="17" pathLength="100"></circle><circle id="heatArc" cx="20" cy="20" r="17" pathLength="100" stroke-dashoffset="100"></circle></svg>
   <div id="hit"><i></i><i></i><i></i><i></i></div>
   <div id="prompt"></div>
+  <div id="wname"></div>
+  <div id="weapons"><div class="wslot" data-w="0"><i>1</i><svg viewBox="0 0 48 20"><path d="M2 8h30l2-2h8v3h4v2h-4v2H30l-3 5h-5l1-5H14l-2 4H7l1-4H2z"/></svg><span>Gewehr</span><small></small></div><div class="wslot" data-w="1"><i>2</i><svg viewBox="0 0 48 20"><path d="M1 7h8V5h20v2h10v2h8v4h-8v2H29l-2 4h-6l1-4H9v-2H1z"/><path d="M30 11h17v1H30z" fill-opacity=".5"/></svg><span>Repetierer</span><small></small></div><div class="wslot" data-w="2"><i>3</i><svg viewBox="0 0 48 20"><path d="M1 9h36v2H1zM14 4h12v4H14zM8 11h22l-3 6h-5l1-4h-8l-2 4H8z"/><path d="M37 9h10v1H37z"/></svg><span>Präzision</span><small></small></div><div class="wslot" data-w="3"><i>4</i><svg viewBox="0 0 48 20"><circle cx="24" cy="11" r="8"/><path d="M22 1h4v3h-4z"/></svg><span>Detonator</span><small></small></div></div>
   <div id="msgs"></div>
   <div id="dead" class="hidden"><div id="deadTitle">Getroffen!</div><div id="deadText"></div></div>
 </div>
@@ -210,9 +225,10 @@
         in einen <b>Schneegleiter</b>. Flieg tief an ein AT-AT und feuere das <b>Schleppkabel</b> ab.<br>
         <b>Imperium:</b> Als Schneetruppler kannst du an einem AT-ST oder AT-AT mit E einsteigen und ihn steuern
         (vor/zurück laufen, mit dem Blick drehen und zielen). Ziel: den Schildgenerator zerstören.<br>
-        <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · Esc Pause<br>
-        <b>Controller:</b> linker Stick bewegen · rechter Stick zielen · ZR/R feuern · ZL/L Visier (X umschalten) · A springen · B benutzen/einsteigen · Y Schleppkabel · Stick drücken sprinten · + Pause. Im Menü: hoch/runter blättern, links/rechts Wert ändern, A bestätigen, B zurück<br>
-        <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel
+        <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · 1–4 / Mausrad Waffe wählen · Esc Pause<br>
+        <b>Controller:</b> linker Stick bewegen · rechter Stick zielen · ZR/R feuern · ZL/L Visier (X umschalten) · A springen · B benutzen/einsteigen · Y Waffe wechseln bzw. Schleppkabel · Steuerkreuz ◀ ▶ Waffe wählen · Stick drücken sprinten · + Pause. Im Menü: hoch/runter blättern, links/rechts Wert ändern, A bestätigen, B zurück<br>
+        <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel · Waffenleiste unten antippen = Waffe wählen<br>
+        <b>Waffen:</b> Blastergewehr (Allround, Visier) · Repetierblaster (hohe Feuerrate, streut, überhitzt) · Präzisionsgewehr (starkes Zielfernrohr, große Reichweite, langsam) · Thermaldetonator (Wurfgranate, 3 pro Leben, Flächenwirkung gegen Soldaten)
       </details>
     </div>
     <div class="card glass"><div id="settings"></div></div>
