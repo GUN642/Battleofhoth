@@ -21,7 +21,7 @@ const G = {
 //  speed m/s, len/w = Optik, splash = Explosionsradius (tötet Infanterie),
 //  atst/atat = Schaden an Läufern, struct = Schaden an Türmen/Generator, veh = Schaden an Schneegleitern
 const KIND = [
-  { speed: 125, len: 1.6, w: 0.07, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 2.2 },     // 0 Blaster
+  { speed: 125, len: 1.7, w: 0.09, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 2.2 },     // 0 Blaster
   { speed: 115, len: 2.6, w: 0.15, splash: 2.2, atst: 0, atat: 0, struct: 0.5, veh: 1, life: 2.5 }, // 1 AT-ST Kanone
   { speed: 105, len: 5.0, w: 0.32, splash: 5, atst: 0, atat: 0, struct: 2, veh: 2, life: 3.5 },     // 2 AT-AT Kanone
   { speed: 160, len: 3.2, w: 0.22, splash: 3, atst: 1, atat: 1, struct: 0, veh: 0, life: 2.5 },     // 3 Geschützturm
@@ -30,41 +30,61 @@ const KIND = [
 
 // ---------------------------------------------------------------- Soldaten-Modelle
 function soldierGeos(f) {
+  const H = Math.PI / 2;
   if (f === REB) {
-    const coat = 0xcabfa6, pants = 0x8c8372;
+    const coat = 0xcfc3a6, coat2 = 0xb9ad90, pants = 0x8a8170, skin = 0xd9a37c, helm = 0xe8e4da, dark = 0x2a2a2a;
     return {
       body: mergeGeos([
-        gBox(0.5, 0.62, 0.3, 0, 1.22, 0, coat), gBox(0.54, 0.32, 0.34, 0, 0.84, 0, 0xbdb196),
-        gBox(0.55, 0.06, 0.35, 0, 0.96, 0, 0x5a4632), gBox(0.24, 0.26, 0.26, 0, 1.66, 0, 0xd8a47c),
-        gBox(0.32, 0.16, 0.33, 0, 1.8, -0.01, 0xe4e0d4), gBox(0.27, 0.07, 0.05, 0, 1.7, 0.14, 0x262626),
-        gBox(0.38, 0.46, 0.2, 0, 1.24, -0.25, 0x9e967f),
-        gBox(0.12, 0.12, 0.46, -0.2, 1.3, 0.2, coat), gBox(0.12, 0.12, 0.42, 0.2, 1.3, 0.17, coat),
-        gBox(0.07, 0.11, 0.8, 0.04, 1.34, 0.45, 0x2b2b2b),
+        gCap(0.2, 0.34, 0, 1.24, 0, coat, 0, 0, 1.3, 0.85),                 // Oberkörper (Parka)
+        gCyl(0.25, 0.3, 0.4, 10, 0, 0.86, 0, coat2),                       // Mantelschoß
+        gCyl(0.262, 0.262, 0.07, 10, 0, 1.0, 0, 0x5a4632),                 // Gürtel
+        gBox(0.08, 0.1, 0.06, 0.18, 0.98, 0.18, 0x4a3828),                 // Tasche
+        gCyl(0.13, 0.16, 0.12, 10, 0, 1.53, 0, 0xb3a78c),                  // Kragen/Schal
+        gSph(0.12, 0, 1.66, 0.01, skin, 1, 1.1, 1),                         // Kopf
+        gSph(0.15, 0, 1.69, -0.01, helm, 1, 0.95, 1.05, 14, true),          // Helm
+        gCyl(0.165, 0.165, 0.03, 14, 0, 1.69, 0, 0xcdc8bc),                 // Helmrand
+        gBox(0.22, 0.055, 0.07, 0, 1.73, 0.12, dark),                       // Schneebrille
+        gBox(0.36, 0.42, 0.18, 0, 1.28, -0.22, 0x9b927c), gCyl(0.07, 0.07, 0.36, 8, 0, 1.06, -0.22, 0x7d7564, 0, H),
+        gCyl(0.012, 0.012, 0.5, 4, 0.13, 1.62, -0.28, dark),                // Antenne
+        gCap(0.065, 0.28, -0.2, 1.32, 0.16, coat, H), gCap(0.065, 0.26, 0.2, 1.32, 0.15, coat, H),   // Arme
+        gSph(0.055, -0.1, 1.32, 0.36, 0x6b5a48), gSph(0.055, 0.12, 1.31, 0.33, 0x6b5a48),           // Handschuhe
+        gBox(0.06, 0.1, 0.62, 0.03, 1.36, 0.42, dark), gCyl(0.025, 0.025, 0.35, 6, 0.03, 1.38, 0.88, 0x1a1a1a, H),
+        gBox(0.05, 0.14, 0.08, 0.03, 1.25, 0.32, dark),
       ]),
-      leg: mergeGeos([gBox(0.18, 0.78, 0.2, 0, -0.39, 0, pants), gBox(0.19, 0.16, 0.27, 0, -0.82, 0.03, 0x3a3028)]),
+      leg: mergeGeos([gCap(0.085, 0.58, 0, -0.38, 0, pants), gBox(0.2, 0.17, 0.3, 0, -0.81, 0.04, 0x3d3128), gBox(0.21, 0.05, 0.31, 0, -0.88, 0.04, 0x2a221c)]),
     };
   }
-  const w = 0xeeeeee, g = 0xd4d4d4;
+  const w = 0xf2f2f2, w2 = 0xdedfe2, dark = 0x1c1c1e;
   return {
     body: mergeGeos([
-      gBox(0.5, 0.62, 0.3, 0, 1.22, 0, w), gBox(0.58, 0.5, 0.38, 0, 0.74, 0, 0xe2e2e2),
-      gBox(0.55, 0.07, 0.35, 0, 0.98, 0, 0x2e2e2e), gBox(0.3, 0.3, 0.32, 0, 1.7, 0, w),
-      gBox(0.27, 0.08, 0.05, 0, 1.73, 0.16, 0x111111), gBox(0.14, 0.12, 0.06, 0, 1.6, 0.17, 0x3a3a3a),
-      gBox(0.36, 0.42, 0.2, 0, 1.25, -0.25, g),
-      gBox(0.12, 0.12, 0.46, -0.2, 1.3, 0.2, w), gBox(0.12, 0.12, 0.42, 0.2, 1.3, 0.17, w),
-      gBox(0.07, 0.11, 0.7, 0.04, 1.34, 0.42, 0x1a1a1a),
+      gCap(0.2, 0.34, 0, 1.24, 0, w, 0, 0, 1.3, 0.85),
+      gBox(0.36, 0.28, 0.12, 0, 1.3, 0.13, w2),                            // Brustpanzer
+      gBox(0.1, 0.12, 0.04, -0.07, 1.33, 0.2, dark), gBox(0.06, 0.04, 0.04, 0.08, 1.36, 0.2, 0x5a6a90),
+      gCyl(0.27, 0.38, 0.6, 12, 0, 0.72, 0, 0xe9e9eb),                     // Kama (Schneetruppler-Rock)
+      gCyl(0.272, 0.272, 0.08, 12, 0, 1.02, 0, 0x2d2d30),                  // Gürtel
+      gSph(0.165, 0, 1.69, 0, w, 1, 0.98, 1.05, 16),                       // Helm
+      gCyl(0.18, 0.21, 0.12, 14, 0, 1.56, -0.01, w2),                      // Helmkragen
+      gBox(0.25, 0.075, 0.08, 0, 1.71, 0.135, dark),                       // Visier
+      gCyl(0.045, 0.06, 0.1, 8, 0, 1.6, 0.16, 0x4a4a4e, H),                // Atemfilter
+      gBox(0.38, 0.4, 0.2, 0, 1.28, -0.23, w2), gCyl(0.08, 0.08, 0.4, 8, 0, 1.05, -0.24, 0xc9cace, 0, H),
+      gCap(0.065, 0.28, -0.2, 1.32, 0.16, w, H), gCap(0.065, 0.26, 0.2, 1.32, 0.15, w, H),
+      gSph(0.055, -0.1, 1.32, 0.36, dark), gSph(0.055, 0.12, 1.31, 0.33, dark),
+      gBox(0.06, 0.1, 0.55, 0.03, 1.36, 0.4, dark), gCyl(0.035, 0.035, 0.12, 8, 0.03, 1.36, 0.72, 0x111111, H),
     ]),
-    leg: mergeGeos([gBox(0.18, 0.78, 0.2, 0, -0.39, 0, 0xe8e8e8), gBox(0.2, 0.16, 0.28, 0, -0.82, 0.03, 0x9a9a9a)]),
+    leg: mergeGeos([gCap(0.09, 0.56, 0, -0.38, 0, w), gBox(0.2, 0.18, 0.29, 0, -0.81, 0.04, 0x8f9096), gBox(0.21, 0.05, 0.3, 0, -0.88, 0.04, 0x55565c)]),
   };
 }
 
 class SoldierRenderer {
   constructor(f, max) {
     const g = soldierGeos(f);
-    this.body = new THREE.InstancedMesh(g.body, VCMAT, max);
-    this.legL = new THREE.InstancedMesh(g.leg, VCMAT, max);
-    this.legR = new THREE.InstancedMesh(g.leg, VCMAT, max);
-    for (const m of [this.body, this.legL, this.legR]) { m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; }
+    this.body = new THREE.InstancedMesh(g.body, MAT.soldier, max);
+    this.legL = new THREE.InstancedMesh(g.leg, MAT.soldier, max);
+    this.legR = new THREE.InstancedMesh(g.leg, MAT.soldier, max);
+    for (const m of [this.body, this.legL, this.legR]) {
+      m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0;
+      m.castShadow = true; m.receiveShadow = true;
+    }
     this.max = max;
   }
   addTo(scene) { scene.add(this.body); scene.add(this.legL); scene.add(this.legR); }
@@ -221,28 +241,38 @@ function fireBolt(kind, f, from, to, spread, owner) {
   b.p.copy(from); b.prev.copy(from); b.v.copy(b.dir).multiplyScalar(K.speed);
   b.f = f; b.kind = kind; b.life = K.life; b.owner = owner;
   G.bolts.push(b);
-  FX.muzzle(from, f);
-  SFX.blaster(from, f, kind >= 1 && kind <= 3);
+  FX.muzzle(from, f, kind > 0);
+  SFX.shot(from, kind, f);
+  if (kind === 2 || kind === 3) FX.flash(from, f === REB ? 1 : 0.4, f === REB ? 0.35 : 1, 0.25, 4, 0.12);
   return b;
 }
 
+// Laserbolzen: heller HDR-Kern + additiver Lichtschein (leuchtet mit Bloom)
 class BoltRenderer {
-  constructor(color, max) {
-    this.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color, fog: false }), max);
-    this.mesh.frustumCulled = false; this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.mesh.count = 0;
+  constructor(r, g, b, max) {
+    const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8, 1); geo.rotateX(Math.PI / 2);
+    this.core = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(r * 1.6 + 0.9, g * 1.6 + 0.9, b * 1.6 + 0.9) }), max);
+    this.glow = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(r * 0.6, g * 0.6, b * 0.6), transparent: true, opacity: 0.5, depthWrite: false }), max);
+    for (const m of [this.core, this.glow]) { m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; }
+    this.glow.renderOrder = 7;
     this.max = max; this.n = 0;
   }
+  addTo(scene) { scene.add(this.core); scene.add(this.glow); }
   begin() { this.n = 0; }
   add(b) {
     if (this.n >= this.max) return;
     const K = KIND[b.kind];
+    const len = Math.min(K.len, (K.life - b.life) * K.speed + 0.3);   // wächst aus der Mündung
     _q.setFromUnitVectors(_Z, b.dir);
-    _v1.copy(b.p).addScaledVector(b.dir, -K.len * 0.5);
-    _v2.set(K.w, K.w, K.len);
+    _v1.copy(b.p).addScaledVector(b.dir, -len * 0.5);
+    _v2.set(K.w, K.w, len);
     _m.compose(_v1, _q, _v2);
-    this.mesh.setMatrixAt(this.n++, _m);
+    this.core.setMatrixAt(this.n, _m);
+    _v2.set(K.w * 3.2, K.w * 3.2, len * 1.08);
+    _m.compose(_v1, _q, _v2);
+    this.glow.setMatrixAt(this.n++, _m);
   }
-  end() { this.mesh.count = this.n; this.mesh.instanceMatrix.needsUpdate = true; }
+  end() { for (const m of [this.core, this.glow]) { m.count = this.n; m.instanceMatrix.needsUpdate = true; } }
 }
 
 // Segment gegen senkrechten Zylinder (Personen, Türme); gibt Parameter t oder -1 zurück
@@ -341,10 +371,10 @@ function onBoltHit(b, type, obj, p) {
       else { FX.sparks(p, 5, 1, 0.8, 0.4); if (byPlayer) G.msg('Blaster wirkungslos gegen Panzerung! Nutze Geschütztürme oder Schneegleiter.', 'armor'); }
       break;
     }
-    case 'ground': if (!K.splash) FX.snowPuff(p, false); break;
+    case 'ground': if (!K.splash) { FX.impact(p, b.f); SFX.impact(p); } break;
   }
   if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player');
-  else if (type !== 'ground') FX.sparks(p, 3, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
+  else if (type !== 'ground') FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
 }
 
 function explode(p, radius, f, owner, playerAlreadyHit) {
@@ -376,30 +406,38 @@ function damageGenerator(d) {
 }
 
 // ---------------------------------------------------------------- AT-AT
-const C_WALK = 0x80868d, C_WALK2 = 0x6b7178, C_WALK3 = 0x575c63, C_DARK = 0x2f3338;
+const C_WALK = 0x8d939a, C_WALK2 = 0x767c84, C_WALK3 = 0x5d636b, C_DARK = 0x2a2e33, C_GLASS = 0x101418;
 let ATAT_GEO = null;
 function atatGeos() {
   if (ATAT_GEO) return ATAT_GEO;
-  ATAT_GEO = {
-    body: mergeGeos([
-      gBox(7, 5.4, 16, 0, 16.6, 0, C_WALK), gBox(5.2, 1.1, 13.5, 0, 19.8, 0, C_WALK2),
-      gBox(6.2, 1.0, 14, 0, 13.5, 0, C_WALK3), gBox(0.4, 3.8, 13, 3.7, 16.8, 0, C_WALK2), gBox(0.4, 3.8, 13, -3.7, 16.8, 0, C_WALK2),
-      gBox(5.6, 4.4, 0.6, 0, 16.4, 8.2, C_WALK2), gBox(5.6, 4.4, 0.6, 0, 16.4, -8.2, C_WALK2),
-      gBox(2.4, 0.4, 10, 0, 20.5, -1, C_WALK3), gBox(7.2, 0.25, 0.3, 0, 18.2, 3, C_WALK3), gBox(7.2, 0.25, 0.3, 0, 18.2, -3, C_WALK3),
-      gCyl(1.3, 1.3, 7.8, 12, 0, 14.3, 5.6, C_WALK3, 0, Math.PI / 2), gCyl(1.3, 1.3, 7.8, 12, 0, 14.3, -5.6, C_WALK3, 0, Math.PI / 2),
-      gBox(2.2, 2.2, 3.6, 0, 15.8, 9.8, C_WALK3), gBox(2.6, 0.5, 3.0, 0, 17.1, 9.8, C_WALK2),
-    ]),
-    head: mergeGeos([
-      gBox(3.6, 3.0, 4.6, 0, 0, 2.3, C_WALK), gBox(2.8, 2.2, 1.6, 0, -0.4, 5.2, C_WALK2),
-      gBox(2.2, 0.35, 0.1, 0, 0.5, 4.62, 0x111111), gBox(3.8, 0.5, 4, 0, 1.6, 2.2, C_WALK2),
-      gCyl(0.28, 0.28, 3.2, 8, 1.0, -1.6, 5.0, C_DARK, Math.PI / 2), gCyl(0.28, 0.28, 3.2, 8, -1.0, -1.6, 5.0, C_DARK, Math.PI / 2),
-      gCyl(0.18, 0.18, 2.2, 8, 2.0, 0.3, 4.2, C_DARK, Math.PI / 2), gCyl(0.18, 0.18, 2.2, 8, -2.0, 0.3, 4.2, C_DARK, Math.PI / 2),
-    ]),
-    upper: mergeGeos([gBox(1.4, 6.6, 1.9, 0, -3.3, 0, C_WALK), gBox(1.6, 1.6, 2.1, 0, -0.4, 0, C_WALK2),
-      gCyl(1.0, 1.0, 1.8, 10, 0, -6.6, 0, C_WALK3, 0, Math.PI / 2)]),
-    lower: mergeGeos([gBox(1.2, 6.2, 1.5, 0, -3.1, 0, C_WALK), gBox(1.3, 1.2, 1.6, 0, -5.2, 0, C_WALK2),
-      gCyl(1.45, 1.75, 1.1, 14, 0, -6.1, 0, C_WALK3)]),
-  };
+  const H = Math.PI / 2, body = [], legU = [], legL = [];
+  body.push(gProfile([[-3.4, -2.4], [3.4, -2.4], [3.8, -1.0], [3.8, 1.5], [2.7, 2.9], [-2.7, 2.9], [-3.8, 1.5], [-3.8, -1.0]], 16, 'z', C_WALK, 0, 16.4, 0, 0.12));
+  body.push(gBox(4.6, 0.6, 13, 0, 19.55, -0.5, C_WALK2), gBox(2.0, 0.5, 9, 0, 20.0, -1.5, C_WALK3));
+  for (const sx of [-1, 1]) {
+    body.push(gBox(0.25, 2.6, 6.5, sx * 3.92, 16.6, 3.2, C_WALK2), gBox(0.25, 2.6, 6.0, sx * 3.92, 16.6, -3.6, C_WALK2),
+      gBox(0.3, 0.14, 4, sx * 3.96, 17.9, 0, C_DARK), gBox(0.3, 1.8, 0.14, sx * 3.96, 16.8, -0.3, C_DARK),
+      gBox(1.0, 0.6, 0.3, sx * 1.6, 17.6, -8.45, C_DARK), gBox(1.0, 0.6, 0.3, sx * 1.6, 16.6, -8.45, C_DARK));
+    for (const sz of [-1, 1]) body.push(gCyl(1.55, 1.55, 0.9, 18, sx * 3.75, 14.4, sz * 5.6, C_WALK3, 0, H), gCyl(0.7, 0.7, 1.0, 12, sx * 3.85, 14.4, sz * 5.6, C_DARK, 0, H));
+  }
+  body.push(gBox(6.4, 4.6, 0.5, 0, 16.6, 8.1, C_WALK2), gBox(6.4, 4.6, 0.5, 0, 16.6, -8.1, C_WALK2), gBox(5.8, 0.8, 13.5, 0, 13.7, 0, C_WALK3));
+  for (let i = 0; i < 3; i++) body.push(gCyl(i === 1 ? 1.05 : 1.25, i === 1 ? 1.05 : 1.25, 1.0, 14, 0, 15.9, 8.7 + i, i === 1 ? C_DARK : C_WALK3, H));
+  const head = [
+    gProfile([[0, -1.5], [4.2, -1.4], [5.6, -0.7], [5.6, 0.5], [4.6, 1.2], [0.6, 1.6], [0, 1.4]], 3.6, 'x', C_WALK, 0, 0, 0, 0.08),
+    gBox(3.0, 0.3, 3.6, 0, 1.62, 2.0, C_WALK2), gBox(3.8, 0.9, 1.0, 0, 0.1, 0.6, C_WALK3),
+    gBox(0.85, 0.32, 0.06, 0.7, 0.05, 5.62, C_GLASS), gBox(0.85, 0.32, 0.06, -0.7, 0.05, 5.62, C_GLASS),
+    gBox(1.2, 0.2, 0.06, 0, -0.45, 5.62, C_DARK),
+    gCyl(0.26, 0.32, 2.6, 10, 1.0, -1.5, 5.3, C_DARK, H), gCyl(0.26, 0.32, 2.6, 10, -1.0, -1.5, 5.3, C_DARK, H),
+    gCyl(0.36, 0.36, 0.5, 10, 1.0, -1.5, 4.0, C_WALK3, H), gCyl(0.36, 0.36, 0.5, 10, -1.0, -1.5, 4.0, C_WALK3, H),
+    gCyl(0.15, 0.15, 2.0, 8, 1.95, 0.1, 4.6, C_DARK, H), gCyl(0.15, 0.15, 2.0, 8, -1.95, 0.1, 4.6, C_DARK, H),
+  ];
+  legU.push(gBox(1.3, 6.0, 1.8, 0, -3.2, 0, C_WALK), gBox(1.45, 4.0, 2.0, 0, -2.6, 0, C_WALK2),
+    gCyl(0.18, 0.18, 4.6, 8, 0, -3.3, -1.15, C_DARK), gCyl(0.28, 0.28, 1.2, 8, 0, -1.3, -1.15, C_WALK3),
+    gCyl(1.0, 1.0, 1.65, 16, 0, -6.6, 0, C_WALK3, 0, H), gCyl(0.5, 0.5, 1.75, 10, 0, -6.6, 0, C_DARK, 0, H));
+  legL.push(gBox(1.1, 5.8, 1.4, 0, -3.0, 0, C_WALK), gBox(1.25, 3.0, 1.6, 0, -2.0, 0, C_WALK2),
+    gCyl(0.16, 0.16, 4.2, 8, 0, -3.2, 0.95, C_DARK), gBox(1.4, 0.9, 1.6, 0, -6.2, 0, C_WALK3),
+    gCyl(1.5, 1.85, 1.0, 20, 0, -7.1, 0, C_WALK3), gCyl(1.86, 1.86, 0.15, 20, 0, -7.55, 0, C_DARK));
+  for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + 0.4; legL.push(gBox(0.5, 0.5, 0.9, Math.sin(a) * 1.5, -7.3, Math.cos(a) * 1.5, C_WALK2, 0, a)); }
+  ATAT_GEO = { body: mergeGeos(body), head: mergeGeos(head), upper: mergeGeos(legU), lower: mergeGeos(legL) };
   return ATAT_GEO;
 }
 
@@ -411,21 +449,21 @@ class ATAT {
     this.fallT = 0; this.fallDir = 1; this.crashed = false; this.stopDist = rand(215, 235); this.smokeT = 0;
     const g = atatGeos();
     this.root = new THREE.Group(); this.root.rotation.order = 'YXZ';
-    this.root.add(new THREE.Mesh(g.body, VCMAT));
-    this.head = new THREE.Group(); this.head.position.set(0, 15.6, 11.4); this.head.add(new THREE.Mesh(g.head, VCMAT));
+    this.root.add(new THREE.Mesh(g.body, MAT.vehicle));
+    this.head = new THREE.Group(); this.head.position.set(0, 15.6, 11.4); this.head.add(new THREE.Mesh(g.head, MAT.vehicle));
     this.root.add(this.head);
     this.legs = [];
     const offs = [0, Math.PI, Math.PI * 1.5, Math.PI * 0.5];
-    [[3.0, 5.6], [-3.0, 5.6], [3.0, -5.6], [-3.0, -5.6]].forEach(([lx, lz], i) => {
-      const hip = new THREE.Group(); hip.position.set(lx, 14.3, lz);
-      hip.add(new THREE.Mesh(g.upper, VCMAT));
-      const knee = new THREE.Group(); knee.position.set(0, -6.6, 0); knee.add(new THREE.Mesh(g.lower, VCMAT));
+    [[4.6, 5.6], [-4.6, 5.6], [4.6, -5.6], [-4.6, -5.6]].forEach(([lx, lz], i) => {
+      const hip = new THREE.Group(); hip.position.set(lx, 14.4, lz);
+      hip.add(new THREE.Mesh(g.upper, MAT.vehicle));
+      const knee = new THREE.Group(); knee.position.set(0, -6.6, 0); knee.add(new THREE.Mesh(g.lower, MAT.vehicle));
       hip.add(knee); this.root.add(hip);
       this.legs.push({ hip, knee, off: offs[i] });
     });
     this.local = [new V3(0, 16.6, -5.5), new V3(0, 16.6, 0), new V3(0, 16.6, 5.5), new V3(0, 15.6, 14)];
     this.spheres = this.local.map((p, i) => { const s = p.clone(); s.r = i === 3 ? 2.9 : 4.4; return s; });
-    G.dyn.add(this.root);
+    G.dyn.add(shadowify(this.root));
     this.syncMesh();
   }
   syncMesh() {
@@ -434,7 +472,7 @@ class ATAT {
     for (let i = 0; i < 4; i++) { const r = this.spheres[i].r; this.spheres[i].copy(this.local[i]).applyMatrix4(this.root.matrixWorld); this.spheres[i].r = r; }
   }
   legWorld(i, out) { return out.set(0, -6, 0).applyMatrix4(this.legs[i].hip.matrixWorld); }
-  muzzle(i, out) { return out.set(i ? -1.0 : 1.0, -1.6, 6.7).applyMatrix4(this.head.matrixWorld); }
+  muzzle(i, out) { return out.set(i ? -1.0 : 1.0, -1.5, 6.7).applyMatrix4(this.head.matrixWorld); }
   damage(d, by) {
     if (!this.alive || this.tangled) return;
     this.hp -= d;
@@ -526,18 +564,23 @@ class ATAT {
 let ATST_GEO = null;
 function atstGeos() {
   if (ATST_GEO) return ATST_GEO;
+  const H = Math.PI / 2;
+  const head = [
+    gProfile([[-1.3, -0.6], [0.9, -0.75], [1.9, -0.2], [1.9, 0.3], [1.2, 1.2], [-1.0, 1.35], [-1.4, 0.9]], 2.5, 'x', C_WALK, 0, 0.5, 0, 0.06),
+    gBox(1.5, 0.17, 0.06, 0, 0.55, 1.92, C_GLASS), gBox(0.5, 0.12, 0.06, 0.6, 0.85, 1.6, C_GLASS), gBox(0.5, 0.12, 0.06, -0.6, 0.85, 1.6, C_GLASS),
+    gCyl(0.5, 0.55, 0.3, 14, 0, 1.95, -0.2, C_WALK3), gBox(2.0, 1.0, 0.5, 0, 0.6, -1.5, C_WALK3),
+    gBox(0.3, 0.6, 0.1, 0.5, 0.6, -1.78, C_DARK), gBox(0.3, 0.6, 0.1, -0.5, 0.6, -1.78, C_DARK),
+    gBox(1.4, 0.8, 1.2, 0, -0.5, 0, C_WALK3), gCyl(0.55, 0.55, 1.7, 12, 0, -0.75, 0, C_DARK, 0, H),
+  ];
+  for (const sx of [-1, 1]) head.push(gBox(0.45, 0.45, 1.3, sx * 1.5, 0.4, 0.6, C_WALK3), gCyl(0.08, 0.08, 1.2, 6, sx * 1.5, 0.4, 1.8, C_DARK, H),
+    gCyl(0.09, 0.09, 1.3, 8, sx * 0.35, -0.1, 2.3, C_DARK, H), gCyl(0.16, 0.16, 0.4, 8, sx * 0.35, -0.1, 1.75, C_WALK3, H));
   ATST_GEO = {
-    head: mergeGeos([
-      gBox(2.4, 1.7, 2.4, 0, 0.6, 0, C_WALK), gBox(2.2, 0.9, 1.0, 0, 0.2, 1.6, C_WALK2),
-      gBox(1.6, 0.25, 0.08, 0, 0.8, 1.22, 0x111111), gCyl(0.5, 0.5, 0.3, 10, 0, 1.6, -0.2, C_WALK3),
-      gBox(0.5, 0.5, 1.4, 1.45, 0.3, 0.6, C_WALK3), gBox(0.5, 0.5, 1.4, -1.45, 0.3, 0.6, C_WALK3),
-      gCyl(0.08, 0.08, 1.2, 6, 1.45, 0.3, 1.8, 0x222222, Math.PI / 2), gCyl(0.08, 0.08, 1.2, 6, -1.45, 0.3, 1.8, 0x222222, Math.PI / 2),
-      gCyl(0.1, 0.1, 1.2, 6, 0.3, -0.35, 2.3, 0x222222, Math.PI / 2), gCyl(0.1, 0.1, 1.2, 6, -0.3, -0.35, 2.3, 0x222222, Math.PI / 2),
-      gBox(2.0, 1.2, 0.6, 0, 0.5, -1.4, C_WALK3), gBox(1.3, 0.7, 1.0, 0, -0.6, 0, C_WALK3),
-    ]),
-    thigh: mergeGeos([gBox(0.45, 2.7, 0.6, 0, -1.35, 0, C_WALK), gCyl(0.35, 0.35, 0.7, 8, 0, 0, 0, C_WALK3, 0, Math.PI / 2)]),
-    shin: mergeGeos([gBox(0.4, 2.9, 0.5, 0, -1.45, 0, C_WALK2), gCyl(0.3, 0.3, 0.6, 8, 0, 0, 0, C_WALK3, 0, Math.PI / 2)]),
-    foot: mergeGeos([gBox(1.0, 0.25, 1.7, 0, -0.12, 0.25, C_WALK3), gBox(0.6, 0.3, 0.5, 0, 0.05, -0.55, C_WALK3)]),
+    head: mergeGeos(head),
+    thigh: mergeGeos([gBox(0.42, 2.7, 0.55, 0, -1.35, 0, C_WALK), gBox(0.48, 1.6, 0.6, 0, -1.0, 0, C_WALK2), gCyl(0.08, 0.08, 2.2, 6, 0, -1.35, -0.38, C_DARK),
+      gCyl(0.36, 0.36, 0.7, 12, 0, 0, 0, C_WALK3, 0, H)]),
+    shin: mergeGeos([gBox(0.38, 2.9, 0.48, 0, -1.45, 0, C_WALK2), gCyl(0.07, 0.07, 2.4, 6, 0, -1.4, 0.33, C_DARK), gCyl(0.3, 0.3, 0.62, 12, 0, 0, 0, C_WALK3, 0, H)]),
+    foot: mergeGeos([gBox(1.0, 0.22, 1.2, 0, -0.11, 0.1, C_WALK3), gBox(0.28, 0.2, 0.7, 0.33, -0.12, 0.95, C_WALK3, 0, -0.25), gBox(0.28, 0.2, 0.7, -0.33, -0.12, 0.95, C_WALK3, 0, 0.25),
+      gBox(0.28, 0.2, 0.6, 0, -0.12, 1.0, C_WALK3), gBox(0.4, 0.2, 0.5, 0, -0.12, -0.6, C_WALK3), gBox(0.5, 0.35, 0.5, 0, 0.1, 0, C_DARK)]),
   };
   return ATST_GEO;
 }
@@ -550,19 +593,19 @@ class ATST {
     this.fireCd = rand(2, 4); this.thinkCd = rand(0, 1); this.target = null; this.fallT = 0; this.smokeT = 0; this.fallDir = 1;
     const g = atstGeos();
     this.root = new THREE.Group(); this.root.rotation.order = 'YXZ';
-    this.head = new THREE.Group(); this.head.position.set(0, 6.2, 0); this.head.add(new THREE.Mesh(g.head, VCMAT));
+    this.head = new THREE.Group(); this.head.position.set(0, 6.2, 0); this.head.add(new THREE.Mesh(g.head, MAT.vehicle));
     this.root.add(this.head);
     this.legs = [];
     [0.75, -0.75].forEach((lx, i) => {
-      const th = new THREE.Group(); th.position.set(lx, 5.25, 0); th.add(new THREE.Mesh(g.thigh, VCMAT));
-      const kn = new THREE.Group(); kn.position.set(0, -2.7, 0); kn.add(new THREE.Mesh(g.shin, VCMAT));
-      const an = new THREE.Group(); an.position.set(0, -2.9, 0); an.add(new THREE.Mesh(g.foot, VCMAT));
+      const th = new THREE.Group(); th.position.set(lx, 5.25, 0); th.add(new THREE.Mesh(g.thigh, MAT.vehicle));
+      const kn = new THREE.Group(); kn.position.set(0, -2.7, 0); kn.add(new THREE.Mesh(g.shin, MAT.vehicle));
+      const an = new THREE.Group(); an.position.set(0, -2.9, 0); an.add(new THREE.Mesh(g.foot, MAT.vehicle));
       kn.add(an); th.add(kn); this.root.add(th);
       this.legs.push({ th, kn, an, off: i * Math.PI });
     });
     this.local = [new V3(0, 6.8, 0.3), new V3(0, 5.5, 0)];
     this.spheres = this.local.map((p, i) => { const s = p.clone(); s.r = i ? 1.0 : 1.9; return s; });
-    G.dyn.add(this.root);
+    G.dyn.add(shadowify(this.root));
     this.sync();
   }
   sync() {
@@ -639,7 +682,7 @@ class ATST {
       aimPoint(this.target, _v2);
       if (Math.abs(angDiff(this.yaw, Math.atan2(_v2.x - this.pos.x, _v2.z - this.pos.z))) < 0.25) {
         for (let i = 0; i < 2; i++) {
-          _v1.set(i ? -0.3 : 0.3, -0.35, 2.9).applyMatrix4(this.head.matrixWorld);
+          _v1.set(i ? -0.35 : 0.35, -0.1, 2.95).applyMatrix4(this.head.matrixWorld);
           fireBolt(1, IMP, _v1, _v2, G.diff.spread * 0.8, this);
         }
       }
@@ -651,13 +694,18 @@ class ATST {
 let TUR_GEO = null;
 function turretGeos() {
   if (TUR_GEO) return TUR_GEO;
+  const H = Math.PI / 2, L = 0xd5d9de, M = 0xb3b9c0, D = 0x50565e;
+  const base = [gCyl(2.1, 2.4, 0.6, 20, 0, 0.3, 0, M), gCyl(1.45, 1.85, 3.3, 20, 0, 2.25, 0, L), gCyl(1.9, 1.9, 0.25, 20, 0, 0.75, 0, D),
+    gBox(0.9, 1.7, 0.1, 0, 1.45, -1.66, 0x8a9097), gBox(0.5, 0.25, 0.1, 0.9, 3.2, 1.45, D)];
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; base.push(gBox(0.2, 3.0, 0.2, Math.sin(a) * 1.68, 2.1, Math.cos(a) * 1.68, M, 0, a)); }
   TUR_GEO = {
-    base: mergeGeos([gCyl(2.0, 2.3, 0.6, 16, 0, 0.3, 0, 0xbfc4ca), gCyl(1.45, 1.8, 3.3, 16, 0, 2.25, 0, 0xc9ced4),
-      gBox(0.9, 1.6, 0.1, 0, 1.4, -1.66, 0x8a9097), gBox(0.4, 0.2, 0.1, 0.9, 3.2, 1.45, 0x555a60)]),
-    head: mergeGeos([gCyl(1.9, 1.9, 0.8, 16, 0, 0.4, 0, 0xd2d7dc), gBox(1.8, 1.0, 2.0, 0, 1.2, 0.3, 0xb5bbc1),
-      gBox(2.2, 0.3, 2.4, 0, 0.85, 0, 0xa3a9b0), gCyl(0.25, 0.25, 0.8, 8, 0, 1.9, -0.6, 0x6e747b)]),
-    barrel: mergeGeos([gCyl(0.13, 0.13, 3.0, 8, 0.35, 0, 1.5, 0x3a3f45, Math.PI / 2), gCyl(0.13, 0.13, 3.0, 8, -0.35, 0, 1.5, 0x3a3f45, Math.PI / 2),
-      gBox(1.1, 0.5, 0.8, 0, 0, 0.1, 0x8a9097)]),
+    base: mergeGeos(base),
+    head: mergeGeos([gCyl(1.95, 1.95, 0.8, 20, 0, 0.4, 0, L), gCyl(2.0, 2.0, 0.12, 20, 0, 0.82, 0, D),
+      gProfile([[-1.2, 0], [1.4, 0], [1.9, 0.5], [1.5, 1.3], [-1.0, 1.4], [-1.3, 0.9]], 1.9, 'x', M, 0, 0.8, 0, 0.05),
+      gBox(1.2, 0.18, 0.06, 0, 1.75, 0.95, C_GLASS), gCyl(0.25, 0.25, 0.8, 8, 0.6, 2.4, -0.6, 0x6e747b), gCyl(0.45, 0.1, 0.25, 12, 0.6, 2.85, -0.6, L, 0.5)]),
+    barrel: mergeGeos([gCyl(0.13, 0.15, 3.0, 10, 0.35, 0, 1.5, 0x3a3f45, H), gCyl(0.13, 0.15, 3.0, 10, -0.35, 0, 1.5, 0x3a3f45, H),
+      gCyl(0.2, 0.2, 0.4, 10, 0.35, 0, 2.95, 0x2a2e33, H), gCyl(0.2, 0.2, 0.4, 10, -0.35, 0, 2.95, 0x2a2e33, H),
+      gBox(1.1, 0.55, 0.9, 0, 0, 0.15, 0x8a9097)]),
   };
   return TUR_GEO;
 }
@@ -669,11 +717,11 @@ class Turret {
     this.manned = false; this.smokeT = 0; this.gun = 0;
     const g = turretGeos();
     this.root = new THREE.Group(); this.root.position.copy(this.pos);
-    this.root.add(new THREE.Mesh(g.base, VCMAT));
-    this.head = new THREE.Group(); this.head.position.y = 3.9; this.head.add(new THREE.Mesh(g.head, VCMAT));
-    this.barrel = new THREE.Group(); this.barrel.position.set(0, 1.2, 1.2); this.barrel.add(new THREE.Mesh(g.barrel, VCMAT));
+    this.root.add(new THREE.Mesh(g.base, MAT.building));
+    this.head = new THREE.Group(); this.head.position.y = 3.9; this.head.add(new THREE.Mesh(g.head, MAT.building));
+    this.barrel = new THREE.Group(); this.barrel.position.set(0, 1.35, 1.2); this.barrel.add(new THREE.Mesh(g.barrel, MAT.vehicle));
     this.head.add(this.barrel); this.root.add(this.head);
-    G.dyn.add(this.root);
+    G.dyn.add(shadowify(this.root));
     this.apply();
   }
   apply() { this.head.rotation.y = this.aimYaw; this.barrel.rotation.x = -this.aimPitch; this.root.updateMatrixWorld(true); }
@@ -731,23 +779,27 @@ class Turret {
 }
 
 // ---------------------------------------------------------------- Schneegleiter (T-47)
-let SPEEDER_GEO = null;
+let SPEEDER_GEO = null, SPEEDER_GLOW = null;
 function speederGeo() {
   if (SPEEDER_GEO) return SPEEDER_GEO;
+  const H = Math.PI / 2;
   const sh = new THREE.Shape();
   sh.moveTo(0, 3.0); sh.lineTo(2.1, -1.0); sh.lineTo(1.7, -2.4); sh.lineTo(-1.7, -2.4); sh.lineTo(-2.1, -1.0); sh.lineTo(0, 3.0);
-  const hull = new THREE.ExtrudeGeometry(sh, { depth: 0.8, bevelEnabled: false });
-  hull.rotateX(-Math.PI / 2); paint(hull, 0xdcdcd6);
-  const top = new THREE.ExtrudeGeometry(sh, { depth: 0.25, bevelEnabled: false });
-  top.rotateX(-Math.PI / 2); top.scale(0.75, 1, 0.75); top.translate(0, 0.8, -0.3); paint(top, 0xc8c8c2);
+  const hull = new THREE.ExtrudeGeometry(sh, { depth: 0.6, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 2 });
+  hull.rotateX(-Math.PI / 2); hull.translate(0, 0.12, 0); paint(hull, 0xe2e2dc);
+  const top = new THREE.ExtrudeGeometry(sh, { depth: 0.2, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 1 });
+  top.rotateX(-Math.PI / 2); top.scale(0.72, 1, 0.72); top.translate(0, 0.86, -0.3); paint(top, 0xcfcfc8);
   SPEEDER_GEO = mergeGeos([hull, top,
-    gBox(1.0, 0.55, 1.5, 0, 1.25, -0.2, 0x2c3540), gBox(0.9, 0.2, 1.2, 0, 1.55, -0.3, 0x434e5b),
-    gCyl(0.45, 0.5, 1.9, 10, 0.95, 0.5, -2.4, 0x8f8f8b, Math.PI / 2), gCyl(0.45, 0.5, 1.9, 10, -0.95, 0.5, -2.4, 0x8f8f8b, Math.PI / 2),
-    gCyl(0.3, 0.3, 0.1, 10, 0.95, 0.5, -3.36, 0xff9a40, Math.PI / 2), gCyl(0.3, 0.3, 0.1, 10, -0.95, 0.5, -3.36, 0xff9a40, Math.PI / 2),
-    gBox(0.3, 0.06, 2.2, 1.15, 0.83, -0.4, 0xd9541e), gBox(0.3, 0.06, 2.2, -1.15, 0.83, -0.4, 0xd9541e),
-    gCyl(0.1, 0.1, 1.8, 6, 1.95, 0.4, 0.4, 0x3a3a3a, Math.PI / 2), gCyl(0.1, 0.1, 1.8, 6, -1.95, 0.4, 0.4, 0x3a3a3a, Math.PI / 2),
-    gCyl(0.08, 0.08, 1.0, 6, 0, 1.0, -2.6, 0x3a3a3a, Math.PI / 2),
+    gProfile([[-1.0, 0], [0.7, 0], [1.1, 0.25], [0.5, 0.65], [-0.6, 0.7], [-1.0, 0.4]], 1.05, 'x', C_GLASS, 0, 1.05, -0.2, 0.04),
+    gBox(1.15, 0.08, 1.9, 0, 1.06, -0.2, 0x9a9a95),
+    gCyl(0.45, 0.52, 1.9, 14, 0.95, 0.5, -2.4, 0x8f8f8b, H), gCyl(0.45, 0.52, 1.9, 14, -0.95, 0.5, -2.4, 0x8f8f8b, H),
+    gCyl(0.54, 0.54, 0.2, 14, 0.95, 0.5, -1.6, 0x6a6a66, H), gCyl(0.54, 0.54, 0.2, 14, -0.95, 0.5, -1.6, 0x6a6a66, H),
+    gCyl(0.38, 0.38, 0.12, 14, 0.95, 0.5, -3.32, 0x222222, H), gCyl(0.38, 0.38, 0.12, 14, -0.95, 0.5, -3.32, 0x222222, H),
+    gBox(0.3, 0.05, 2.2, 1.15, 0.86, -0.4, 0xd9541e), gBox(0.3, 0.05, 2.2, -1.15, 0.86, -0.4, 0xd9541e), gBox(0.6, 0.05, 0.3, 0, 0.85, 1.6, 0xd9541e),
+    gCyl(0.1, 0.1, 1.8, 8, 1.95, 0.45, 0.4, 0x3a3a3a, H), gCyl(0.1, 0.1, 1.8, 8, -1.95, 0.45, 0.4, 0x3a3a3a, H),
+    gCyl(0.08, 0.08, 1.0, 6, 0, 1.0, -2.6, 0x3a3a3a, H), gBox(0.12, 0.5, 0.6, 0.6, 1.0, -2.3, 0xcfcfc8), gBox(0.12, 0.5, 0.6, -0.6, 1.0, -2.3, 0xcfcfc8),
   ]);
+  SPEEDER_GLOW = mergeGeos([gCyl(0.33, 0.33, 0.06, 14, 0.95, 0.5, -3.4, 0xffffff, H), gCyl(0.33, 0.33, 0.06, 14, -0.95, 0.5, -3.4, 0xffffff, H)]);
   return SPEEDER_GEO;
 }
 
@@ -759,10 +811,12 @@ class Speeder {
     this.fireCd = 0; this.gun = 0; this.respawnT = 0; this.smokeT = 0;
     this.ai = { target: null, state: 'approach', t: 0, retarget: 0 };
     this.tow = null;
-    this.mesh = new THREE.Mesh(speederGeo(), VCMAT); this.mesh.rotation.order = 'YXZ';
+    this.mesh = new THREE.Mesh(speederGeo(), MAT.vehicle); this.mesh.rotation.order = 'YXZ';
+    this.mesh.castShadow = this.mesh.receiveShadow = true;
+    this.mesh.add(new THREE.Mesh(SPEEDER_GLOW, MAT.glow));
     G.dyn.add(this.mesh);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(8 * 3), 3));
-    this.cable = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0x222222 })); this.cable.visible = false; this.cable.frustumCulled = false;
+    this.cable = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0x15171a })); this.cable.visible = false; this.cable.frustumCulled = false;
     G.dyn.add(this.cable);
     this.sync();
   }
@@ -780,7 +834,7 @@ class Speeder {
     this.yaw += yr;
     this.pitch += clamp(wantPitch - this.pitch, -turn, turn);
     this.pitch = clamp(this.pitch, -0.7, 0.7);
-    this.roll += (clamp(-yr / dt * 0.55, -1.1, 1.1) - this.roll) * Math.min(1, dt * 4);
+    if (dt > 0) this.roll += (clamp(-yr / dt * 0.55, -1.1, 1.1) - this.roll) * Math.min(1, dt * 4);
     this.speed += clamp(speedTarget - this.speed, -20 * dt, 20 * dt);
     this.forward(this.vel).multiplyScalar(this.speed);
     this.pos.addScaledVector(this.vel, dt);
@@ -794,7 +848,7 @@ class Speeder {
     for (const w of G.atats) {
       if (!w.alive && !w.crashed) continue;
       for (const s of w.spheres) if (this.pos.distanceTo(s) < s.r + 1.5) { this.damage(99); return; }
-      if (w.alive && Math.hypot(this.pos.x - w.pos.x, this.pos.z - w.pos.z) < 7 && this.pos.y < w.pos.y + 13) { this.damage(99); return; }
+      if (w.alive && Math.hypot(this.pos.x - w.pos.x, this.pos.z - w.pos.z) < 8.5 && this.pos.y < w.pos.y + 13) { this.damage(99); return; }
     }
     for (const w of G.atsts) if (w.alive && this.pos.distanceTo(w.spheres[0]) < 3.5) { this.damage(99); w.damage(99, this.mode === 'player' ? G.player : null); return; }
   }

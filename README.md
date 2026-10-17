@@ -3,12 +3,38 @@
 Ein einfacher 3D-First-Person-Shooter zur Schlacht von Hoth. Du kämpfst auf der Seite der
 Rebellen und verteidigst Echo Base gegen Sturmtruppen, AT-STs und AT-ATs.
 
-**Fertige APK:** [`dist/BattleOfHoth.apk`](dist/BattleOfHoth.apk) (Android 7.0 oder neuer)
+**Fertige APK:** [`dist/BattleOfHoth.apk`](dist/BattleOfHoth.apk) (Android 7.0 oder neuer, aktuelle Version siehe
+[`dist/version.json`](dist/version.json))
 
 ## Installation
 1. `dist/BattleOfHoth.apk` aufs Handy laden.
 2. Installation aus „unbekannten Quellen“ für den Browser/Dateimanager erlauben.
 3. APK antippen und installieren. Das Spiel läuft im Querformat und braucht kein Internet.
+
+## Automatische Updates
+Ab Version 1.1 prüft die App bei jedem Start, ob es eine neuere Version gibt. Dafür lädt sie
+`dist/version.json` aus diesem Repository (Standard-Branch). Ist die dort eingetragene `versionCode` höher
+als die installierte, erscheint im Hauptmenü der Dialog „Update verfügbar“. „Jetzt aktualisieren“ lädt die
+neue APK herunter und öffnet den Android-Installer. Beim ersten Mal fragt Android, ob die App andere Apps
+installieren darf. Das muss einmal erlaubt werden. Im Hauptmenü gibt es außerdem den Knopf „Nach Updates suchen“.
+
+Version 1.0 hatte noch keine Update-Prüfung und muss einmalig von Hand durch 1.1 ersetzt werden.
+
+**Neue Version veröffentlichen:** In `android/build_apk.py` `VERSION_CODE` erhöhen, `VERSION_NAME` und
+`RELEASE_NOTES` anpassen, `python3 android/build_apk.py` ausführen und `dist/BattleOfHoth.apk` sowie
+`dist/version.json` auf den Standard-Branch pushen. Installierte Apps finden das Update beim nächsten Start.
+
+## Grafik & Sound
+- PBR-Materialien mit Umgebungsreflexionen, Echtzeit-Schatten, HDR-Rendering mit Bloom (leuchtende Laser,
+  Explosionen) und ACES-Filmic-Tonemapping
+- Prozedurale Schnee- und Paneel-Texturen, detaillierte Modelle, Brandspuren, Lichtblitze, Kamerawackeln
+- Grafikstufen: *Niedrig* (einfache Materialien, keine Schatten, kein Bloom), *Mittel* und *Hoch*
+  (große Schattenkarte, Kantenglättung, volle Auflösung)
+- Blaster-Sounds nach dem Prinzip des Originals: Ben Burtt schlug für Star Wars mit einem Hammer auf das
+  Spannseil eines Funkmasts. Im Stahlseil laufen hohe Frequenzen schneller als tiefe, deshalb hört man einen
+  fallenden „Pew“-Chirp. Das Spiel berechnet genau diesen dispersiven Chirp (f(t) = f0·(t0/(t+t0))²) samt
+  Seil-Echo und metallischem Oberton, getrennt für Rebellen-Blaster, E-11, Geschütztürme, AT-ST, AT-AT und
+  Schneegleiter, mit Stereo-Ortung und Dämpfung in der Ferne.
 
 ## Spielprinzip
 - Schützengraben, Geschütztürme, Schildgenerator, Landeplattform mit Schneegleitern.
@@ -37,8 +63,11 @@ KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlich
 ## Projektaufbau
 - `web/`: das Spiel (HTML5/WebGL mit [three.js](https://threejs.org) r149, ohne weitere Abhängigkeiten).
   Zum Testen am PC `web/index.html` direkt im Browser öffnen.
-- `android/`: minimale Android-App (Vollbild-WebView, lädt `web/` aus den Assets) und Build-Skript.
-- `dist/BattleOfHoth.apk`: die fertig gebaute und signierte APK.
+  - `world.js` Gelände, Texturen, Materialien, Himmel, Effekte · `audio.js` Sound-Synthese ·
+    `units.js` Einheiten, KI, Laser · `post.js` Bloom/Tonemapping · `game.js` Spieler, HUD, Menü ·
+    `update.js` Update-Dialog
+- `android/`: Android-App (Vollbild-WebView, lädt `web/` aus den Assets, Update-Prüfung) und Build-Skript.
+- `dist/BattleOfHoth.apk`: die fertig gebaute und signierte APK, `dist/version.json`: Versionsinfo für die Update-Prüfung.
 
 ## APK selbst bauen
 Voraussetzungen: Python 3 mit Pillow, ein JDK (17 oder neuer) und Internet für den einmaligen

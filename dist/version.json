@@ -1,0 +1,13 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1",
+  "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
+  "notes": [
+    "Neue Grafik: Echtzeit-Schatten, PBR-Materialien, Bloom-Leuchten, Filmic-Tonemapping",
+    "Detailliertere AT-AT, AT-ST, Schneegleiter, Geschütztürme und Soldaten",
+    "Explosionen mit Lichtblitz, Brandspuren und Kamerawackeln",
+    "Original-ähnliche Blaster-Sounds (dispersiver Stahlseil-Chirp) mit Stereo-Ortung",
+    "Modernes HUD und Hauptmenü",
+    "Automatische Update-Prüfung"
+  ]
+}

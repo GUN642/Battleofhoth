@@ -9,13 +9,13 @@ const MAX_REBELS = 60, MAX_TROOPERS = 150;
 
 // ---------------------------------------------------------------- Einstellungen
 const SETTINGS = [
-  { key: 'rebels', label: 'Rebellen (dein Team)', min: 0, max: MAX_REBELS, def: 20 },
+  { key: 'rebels', group: 'Truppen', label: 'Rebellen (dein Team)', min: 0, max: MAX_REBELS, def: 20 },
   { key: 'troopers', label: 'Sturmtruppen', min: 0, max: MAX_TROOPERS, def: 40 },
   { key: 'atst', label: 'AT-ST', min: 0, max: 10, def: 3 },
   { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2 },
   { key: 'aiSpeeders', label: 'Schneegleiter (KI-Verbündete)', min: 0, max: 8, def: 2 },
   { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6 },
-  { key: 'lives', label: 'Deine Leben', min: 1, max: 10, def: 3 },
+  { key: 'lives', group: 'Spiel', label: 'Deine Leben', min: 1, max: 10, def: 3 },
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
   { key: 'sens', label: 'Blick-Empfindlichkeit', min: 1, max: 10, def: 5 },
   { key: 'gfx', label: 'Grafik', min: 0, max: 2, def: 1, names: ['Niedrig', 'Mittel', 'Hoch'] },
@@ -29,6 +29,7 @@ function buildSettingsUI() {
   const root = $('settings');
   root.innerHTML = '';
   for (const s of SETTINGS) {
+    if (s.group) { const g = document.createElement('div'); g.className = 'group'; g.textContent = s.group; root.append(g); }
     const div = document.createElement('div'); div.className = 'set';
     const lab = document.createElement('label');
     const name = document.createElement('span'); name.textContent = s.label;
@@ -36,7 +37,10 @@ function buildSettingsUI() {
     lab.append(name, val);
     const inp = document.createElement('input');
     inp.type = 'range'; inp.min = s.min; inp.max = s.max; inp.step = 1; inp.value = clamp(+CFG[s.key], s.min, s.max);
-    const show = () => { CFG[s.key] = +inp.value; val.textContent = s.names ? s.names[CFG[s.key]] : CFG[s.key]; };
+    const show = () => {
+      CFG[s.key] = +inp.value; val.textContent = s.names ? s.names[CFG[s.key]] : CFG[s.key];
+      inp.style.setProperty('--p', ((CFG[s.key] - s.min) / (s.max - s.min) * 100).toFixed(1) + '%');
+    };
     inp.addEventListener('input', () => { show(); saveCfg(); if (s.key === 'gfx') applyGfx(); });
     show();
     div.append(lab, inp); root.append(div);
@@ -44,16 +48,29 @@ function buildSettingsUI() {
 }
 
 // ---------------------------------------------------------------- Renderer & Szene
-const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: !IS_TOUCH, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: false, powerPreference: 'high-performance' });
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const post = new PostFX(renderer);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xd5e1ec);
-scene.fog = new THREE.Fog(0xd5e1ec, 90, 900);
+scene.background = HORIZON.clone();
+scene.fog = new THREE.Fog(HORIZON.clone(), 120, 1100);
 const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 5000);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x7a8698, 0.62));
-const sun = new THREE.DirectionalLight(0xfff6ea, 0.68); sun.position.set(-0.6, 0.8, 0.45); scene.add(sun);
+const hemi = new THREE.HemisphereLight(new THREE.Color().setRGB(0.55, 0.65, 0.85), new THREE.Color().setRGB(0.55, 0.58, 0.62), 0.15);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(new THREE.Color().setRGB(1.0, 0.93, 0.82), 1.45);
+sun.position.copy(SUN_DIR).multiplyScalar(200);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+scene.add(sun); scene.add(sun.target);
 
+buildTextures();
+buildMaterials();
+buildEnvironment(renderer, scene);
 buildHeightCache();
 scene.add(buildTerrainMesh());
 buildSky(scene);
@@ -64,33 +81,71 @@ G.scene = scene;
 G.dyn = new THREE.Group(); scene.add(G.dyn);
 const rebR = new SoldierRenderer(REB, MAX_REBELS), impR = new SoldierRenderer(IMP, MAX_TROOPERS);
 rebR.addTo(scene); impR.addTo(scene);
-const boltRed = new BoltRenderer(0xff3a22, 500), boltGreen = new BoltRenderer(0x44ff3a, 500);
-scene.add(boltRed.mesh); scene.add(boltGreen.mesh);
+const boltRed = new BoltRenderer(3.2, 0.06, 0.03, 500), boltGreen = new BoltRenderer(0.12, 3.0, 0.06, 500);
+boltRed.addTo(scene); boltGreen.addTo(scene);
 
+// Grafikstufen: 0 Niedrig (keine Schatten/kein Bloom), 1 Mittel, 2 Hoch (große Schatten, Kantenglättung)
+const GFX = [
+  { pr: 0.75, shadow: 0, bloom: false, msaa: 0, lights: false, low: true },
+  { pr: 1.25, shadow: 1024, bloom: true, msaa: 0, lights: true, low: false },
+  { pr: 2.0, shadow: 2048, bloom: true, msaa: 4, lights: true, low: false },
+];
+let gfx = GFX[1];
 function applyGfx() {
+  gfx = GFX[CFG.gfx | 0] || GFX[1];
   const dpr = window.devicePixelRatio || 1;
-  const pr = [0.75, Math.min(dpr, 1.25), Math.min(dpr, 2)][CFG.gfx | 0];
-  renderer.setPixelRatio(pr);
+  renderer.setPixelRatio(Math.min(dpr, gfx.pr));
+  sun.castShadow = gfx.shadow > 0;
+  if (gfx.shadow) {
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    sun.shadow.mapSize.set(gfx.shadow, gfx.shadow);
+    const S = gfx.shadow > 1024 ? 85 : 60, c = sun.shadow.camera;
+    c.left = -S; c.right = S; c.top = S; c.bottom = -S; c.near = 1; c.far = 500; c.updateProjectionMatrix();
+  }
+  FX.setLights(gfx.lights);
+  setMaterialQuality(scene, gfx.low);
+  hemi.intensity = gfx.low ? 0.75 : 0.15;
   onResize();
 }
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
-  const hpx = renderer.getDrawingBufferSize(new THREE.Vector2()).y;
-  FX.setScale(hpx / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  const buf = renderer.getDrawingBufferSize(new THREE.Vector2());
+  FX.setScale(buf.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  post.configure(gfx.bloom, gfx.msaa, buf.x, buf.y);
+}
+// Schattenkamera folgt dem Spieler (auf Texel gerastert, damit nichts flimmert)
+const _shadowFocus = new THREE.Vector3();
+function updateSun() {
+  if (!sun.castShadow) return;
+  camera.getWorldDirection(_shadowFocus);
+  _shadowFocus.y = 0; _shadowFocus.normalize().multiplyScalar(sun.shadow.camera.right * 0.6).add(camera.position);
+  const step = sun.shadow.camera.right * 2 / sun.shadow.mapSize.x * 4;
+  _shadowFocus.x = Math.round(_shadowFocus.x / step) * step; _shadowFocus.z = Math.round(_shadowFocus.z / step) * step;
+  _shadowFocus.y = heightAt(_shadowFocus.x, _shadowFocus.z);
+  sun.target.position.copy(_shadowFocus);
+  sun.position.copy(SUN_DIR).multiplyScalar(220).add(_shadowFocus);
 }
 window.addEventListener('resize', onResize);
 
 // Waffe in der Hand (Ego-Ansicht)
 const gun = new THREE.Group();
-gun.add(vcMesh([
-  gBox(0.07, 0.09, 0.62, 0, 0, -0.1, 0x2a2a2a), gBox(0.05, 0.12, 0.18, 0, -0.08, 0.12, 0x3b2f25),
-  gBox(0.035, 0.035, 0.32, 0, 0.01, -0.55, 0x1c1c1c), gBox(0.04, 0.05, 0.2, 0, 0.08, -0.15, 0x444444),
-  gBox(0.06, 0.08, 0.06, 0, -0.08, -0.2, 0x2a2a2a), gBox(0.09, 0.07, 0.16, -0.02, -0.06, 0.05, 0xcabfa6),
-]));
-gun.position.set(0.11, -0.1, -0.3); gun.scale.setScalar(0.36); gun.rotation.y = 0.05;
-const gunTip = new THREE.Object3D(); gunTip.position.set(0, 0.01, -0.72); gun.add(gunTip);
+{
+  const H = Math.PI / 2;
+  const gm = vcMesh([
+    gBox(0.065, 0.085, 0.42, 0, 0, -0.06, 0x2a2c30), gBox(0.05, 0.12, 0.2, 0, -0.06, 0.18, 0x4a3a2c),
+    gCyl(0.028, 0.028, 0.36, 12, 0, 0.012, -0.44, 0x1c1d20, H), gCyl(0.018, 0.018, 0.08, 10, 0, 0.012, -0.66, 0x111214, H),
+    gBox(0.02, 0.03, 0.02, 0, 0.05, -0.56, 0x1c1d20), gCyl(0.018, 0.018, 0.18, 10, 0, 0.07, -0.08, 0x3a3d42, H),
+    gBox(0.03, 0.05, 0.16, -0.045, -0.01, -0.18, 0x1c1d20),
+    gBox(0.04, 0.085, 0.045, 0, -0.08, -0.12, 0x26282b), gBox(0.016, 0.02, 0.06, 0.04, 0.03, -0.25, 0xd9541e),
+    gBox(0.1, 0.075, 0.18, -0.025, -0.07, 0.06, 0xcfc3a6), gSph(0.045, -0.025, -0.09, 0.12, 0x6b5a48),
+  ], MAT.gun);
+  gm.castShadow = false;
+  gun.add(gm);
+}
+gun.position.set(0.13, -0.12, -0.3); gun.scale.setScalar(IS_TOUCH ? 0.34 : 0.4); gun.rotation.y = 0.06;
+const gunTip = new THREE.Object3D(); gunTip.position.set(0, 0.012, -0.72); gun.add(gunTip);
 camera.add(gun);
 
 // ---------------------------------------------------------------- Spieler
@@ -339,7 +394,7 @@ function updatePlayer(dt) {
     camera.position.set(P.pos.x, P.pos.y + 1.62 + bobY, P.pos.z);
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = true;
-    gun.position.set(0.11 + Math.cos(P.bob * 0.5) * 0.005, -0.1 + bobY * 0.15, -0.3 + P.recoil * 0.025);
+    gun.position.set(0.13 + Math.cos(P.bob * 0.5) * 0.005, -0.12 + bobY * 0.15, -0.3 + P.recoil * 0.025);
     gun.rotation.x = P.recoil * 0.12;
     // Feuern
     if (firing && P.fireCd <= 0 && P.overheat <= 0) {
@@ -451,9 +506,9 @@ const radarCtx = $('radar').getContext('2d');
 function updateHUD(dt) {
   if (hitTimer > 0) { hitTimer -= dt; if (hitTimer <= 0) $('hit').classList.remove('on'); }
   const heat = $('heat');
-  $('heatFill').style.width = (P.heat * 100).toFixed(0) + '%';
+  $('heatArc').style.strokeDashoffset = (100 - P.heat * 100).toFixed(1);
   heat.classList.toggle('over', P.overheat > 0);
-  heat.style.visibility = (P.mode === 'foot' || P.mode === 'turret') && P.heat > 0.01 ? 'visible' : 'hidden';
+  heat.style.opacity = (P.mode === 'foot' || P.mode === 'turret') && P.heat > 0.01 ? '1' : '0';
   $('cross').className = P.mode === 'speeder' || P.mode === 'turret' ? 'big' : '';
   $('cross').style.visibility = P.mode === 'dead' ? 'hidden' : 'visible';
   $('bHarp').classList.toggle('hidden', P.mode !== 'speeder');
@@ -463,9 +518,11 @@ function updateHUD(dt) {
     hudT = 0.2;
     const reb = G.rebels.filter(s => s.alive).length, imp = G.imps.filter(s => s.alive).length;
     const st = G.atsts.filter(s => s.alive).length, at = G.atats.filter(s => s.alive).length;
-    $('stats').innerHTML = `<span class="reb">Rebellen: <b>${reb}</b></span><br><span class="imp">Sturmtruppen: <b>${imp}</b> · AT-ST: <b>${st}</b> · AT-AT: <b>${at}</b></span>`;
-    $('lives').innerHTML = `Leben: <b style="color:#ff8a7a">${'♥'.repeat(Math.max(0, P.lives))}</b><br>Abschüsse: <b style="color:#ffe81f">${P.kills}</b>`;
+    $('stats').innerHTML = `<div class="chip reb"><span>Rebellen</span><b>${reb}</b></div>` +
+      `<div class="chip imp"><span>Sturmtruppen</span><b>${imp}</b></div><div class="chip imp"><span>AT-ST</span><b>${st}</b></div><div class="chip imp"><span>AT-AT</span><b>${at}</b></div>`;
+    $('lives').innerHTML = `<div class="chip"><span>Leben</span><b class="hearts">${'<i></i>'.repeat(Math.max(0, P.lives))}</b></div><div class="chip"><span>Abschüsse</span><b>${P.kills}</b></div>`;
     $('genFill').style.width = (100 * G.genHP / G.genMax).toFixed(1) + '%';
+    $('genPct').textContent = Math.round(100 * G.genHP / G.genMax) + '%';
     $('genFill').style.background = G.genHP / G.genMax < 0.3 ? '#ff5a3a' : '';
   }
   radarT -= dt;
@@ -587,8 +644,8 @@ function endGame(win, reason) {
   const m = Math.floor(battleT / 60), s = Math.floor(battleT % 60);
   const reb = G.rebels.filter(r => r.alive).length;
   $('overText').innerHTML = (win ? 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!' : reason) +
-    `<br><br>Deine Abschüsse: <b>${P.kills}</b><br>Überlebende Rebellen: <b>${reb} / ${G.rebels.length}</b>` +
-    `<br>Schildgenerator: <b>${Math.round(100 * G.genHP / G.genMax)}%</b><br>Dauer: <b>${m}:${String(s).padStart(2, '0')}</b>`;
+    `<div class="stats2"><div><span>Abschüsse</span><b>${P.kills}</b></div><div><span>Rebellen übrig</span><b>${reb}/${G.rebels.length}</b></div>` +
+    `<div><span>Schildgenerator</span><b>${Math.round(100 * G.genHP / G.genMax)}%</b></div><div><span>Dauer</span><b>${m}:${String(s).padStart(2, '0')}</b></div></div>`;
 }
 window.hothPause = () => pause();
 window.hothBack = () => {
@@ -617,6 +674,7 @@ function checkEnd(dt) {
 
 // ---------------------------------------------------------------- Hauptschleife
 function simulate(dt) {
+  if (!(dt > 0)) return;
   G.time += dt;
   SFX.tick(dt);
   for (const s of G.rebels) updateSoldier(s, dt);
@@ -640,7 +698,6 @@ function menuCamera(dt) {
   camera.position.set(x, heightAt(x, 40) + 16, 40);
   camera.lookAt(x * 0.4, 12, -160);
   gun.visible = false;
-  SFX.listener.copy(camera.position);
   // Demo-Schlacht neu starten, wenn sie vorbei ist
   const enemies = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
   if (!enemies || G.genHP <= 0 || G.time > 420) startDemo();
@@ -654,7 +711,6 @@ function frame(now) {
   if (state === 'playing') {
     battleT += dt;
     updatePlayer(dt);
-    SFX.listener.copy(camera.position);
     simulate(dt);
     updateHUD(dt);
     checkEnd(dt);
@@ -663,13 +719,19 @@ function frame(now) {
     menuCamera(dt);
   }
   if (state === 'playing' || state === 'menu') FX.update(dt);
+  // Kamera-Wackeln bei nahen Explosionen
+  const sh = FX.shake * FX.shake * 0.35;
+  if (sh > 0.001 && state === 'playing') { camera.position.x += rand(-sh, sh); camera.position.y += rand(-sh, sh); camera.rotation.z += rand(-sh, sh) * 0.15; }
+  camera.updateMatrixWorld();
+  SFX.setListener(camera);
   drawDynamic();
   snow.update(dt, camera.position);
-  renderer.render(scene, camera);
+  updateSun();
+  post.render(scene, camera, now / 1000, P.mode === 'dead' ? 0.6 : 0);
 }
 
 // Debug-/Testschnittstelle
-window.__hoth = { G, P, CFG, newGame, showMenu, simulate, setupBattle, get state() { return state; }, input };
+window.__hoth = { G, P, CFG, newGame, showMenu, simulate, setupBattle, get state() { return state; }, input, renderer, scene, camera };
 
 applyGfx();
 showMenu();

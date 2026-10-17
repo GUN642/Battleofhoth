@@ -7,12 +7,14 @@ Download der Werkzeuge von Maven Central:
   - com.google.android:android:4.1.1.4      (android.jar zum Kompilieren)
   - com.jakewharton.android.repackaged:dalvik-dx (Java-Bytecode -> classes.dex)
   - com.android.tools.build:apksig          (APK-Signatur v2)
+  - org.json:json                           (nur zum Kompilieren, org.json steckt in Android)
 
 AndroidManifest.xml (binäres AXML) und resources.arsc (nur das App-Icon) werden von
 diesem Skript direkt erzeugt. Ergebnis: dist/BattleOfHoth.apk
 
 Aufruf:  python3 android/build_apk.py
 """
+import json
 import os
 import shutil
 import struct
@@ -31,8 +33,19 @@ OUT_APK = os.path.join(DIST, 'BattleOfHoth.apk')
 
 PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
-VERSION_CODE = 1
-VERSION_NAME = '1.0'
+# Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
+# automatisch über dist/version.json im GitHub-Repository.
+VERSION_CODE = 2
+VERSION_NAME = '1.1'
+RELEASE_NOTES = [
+    'Neue Grafik: Echtzeit-Schatten, PBR-Materialien, Bloom-Leuchten, Filmic-Tonemapping',
+    'Detailliertere AT-AT, AT-ST, Schneegleiter, Geschütztürme und Soldaten',
+    'Explosionen mit Lichtblitz, Brandspuren und Kamerawackeln',
+    'Original-ähnliche Blaster-Sounds (dispersiver Stahlseil-Chirp) mit Stereo-Ortung',
+    'Modernes HUD und Hauptmenü',
+    'Automatische Update-Prüfung',
+]
+REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus
 TARGET_SDK = 34
 
@@ -49,6 +62,7 @@ ARTIFACTS = {
     'android.jar': 'com/google/android/android/4.1.1.4/android-4.1.1.4.jar',
     'dx.jar': 'com/jakewharton/android/repackaged/dalvik-dx/16.0.1/dalvik-dx-16.0.1.jar',
     'apksig.jar': 'com/android/tools/build/apksig/2.3.0/apksig-2.3.0.jar',
+    'json.jar': 'org/json/json/20080701/json-20080701.jar',   # nur zum Kompilieren (org.json ist Teil von Android)
 }
 
 
@@ -109,6 +123,8 @@ def build_manifest():
     tree = ('manifest', [(A, 'versionCode', T_INT_DEC, VERSION_CODE), (A, 'versionName', T_STRING, VERSION_NAME),
                          (False, 'package', T_STRING, PACKAGE)], [
         ('uses-sdk', [(A, 'minSdkVersion', T_INT_DEC, MIN_SDK), (A, 'targetSdkVersion', T_INT_DEC, TARGET_SDK)], []),
+        ('uses-permission', [(A, 'name', T_STRING, 'android.permission.INTERNET')], []),
+        ('uses-permission', [(A, 'name', T_STRING, 'android.permission.REQUEST_INSTALL_PACKAGES')], []),
         ('application', [(A, 'label', T_STRING, APP_LABEL), (A, 'icon', T_REF, 0x7f010000),
                          (A, 'allowBackup', T_BOOL, True), (A, 'hardwareAccelerated', T_BOOL, True)], [
             ('activity', [(A, 'theme', T_REF, 0x01030007),  # @android:style/Theme.NoTitleBar.Fullscreen
@@ -274,7 +290,14 @@ def main():
     srcs = []
     for dp, _, fns in os.walk(os.path.join(AND, 'src')):
         srcs += [os.path.join(dp, f) for f in fns if f.endswith('.java')]
-    run(['javac', '-nowarn', '--release', '8', '-cp', android_jar,
+    # Stubs (z.B. @JavascriptInterface) nur zum Kompilieren, nicht ins dex
+    stub_srcs = []
+    for dp, _, fns in os.walk(os.path.join(AND, 'stubs')):
+        stub_srcs += [os.path.join(dp, f) for f in fns if f.endswith('.java')]
+    os.makedirs(os.path.join(BUILD, 'stubs'))
+    run(['javac', '-nowarn', '--release', '8', '-d', os.path.join(BUILD, 'stubs')] + stub_srcs)
+    json_jar = os.path.join(TOOLS, 'json.jar')
+    run(['javac', '-nowarn', '--release', '8', '-cp', os.pathsep.join([android_jar, json_jar, os.path.join(BUILD, 'stubs')]),
          '-d', os.path.join(BUILD, 'classes')] + srcs)
     run(['java', '-cp', dx_jar, 'com.android.dx.command.Main', '--dex', '--min-sdk-version=%d' % MIN_SDK,
          '--output=' + os.path.join(BUILD, 'classes.dex'), os.path.join(BUILD, 'classes')])
@@ -314,7 +337,11 @@ def main():
     print('[6/6] Prüfen')
     run(['java'] + jflags + ['-cp', cp, 'Sign', 'verify', OUT_APK])
     check_alignment(OUT_APK)
-    print('\nFertig: %s (%.1f MB)' % (OUT_APK, os.path.getsize(OUT_APK) / 1e6))
+    with open(os.path.join(DIST, 'version.json'), 'w', encoding='utf-8') as f:
+        json.dump({'versionCode': VERSION_CODE, 'versionName': VERSION_NAME,
+                   'apk': REPO_RAW + '/dist/BattleOfHoth.apk', 'notes': RELEASE_NOTES}, f, ensure_ascii=False, indent=2)
+        f.write('\n')
+    print('\nFertig: %s (%.1f MB), Version %s (%d)' % (OUT_APK, os.path.getsize(OUT_APK) / 1e6, VERSION_NAME, VERSION_CODE))
 
 
 if __name__ == '__main__':
