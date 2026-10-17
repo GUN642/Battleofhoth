@@ -35,7 +35,21 @@ const TR = { depth: 1.05, half: 1.25, berm: 0.3, bermW: 3.2, len: 175 };   // Sc
 // ---------------------------------------------------------------- Karten
 //  hoth  = Schneefeld mit Schützengraben vor dem Schildgenerator
 //  endor = Wald des Mondes Endor, Rebellen verteidigen den Bunkereingang
-const MAP = { id: 'hoth', look: null };
+//  geonosis = Wüste von Geonosis, Klonkrieger (Seite "Rebellen") gegen die Droidenarmee (Seite "Imperium")
+const MAP_IDS = ['hoth', 'endor', 'geonosis'];
+const MAP = { id: 'hoth', look: null, names: null };
+// Bezeichnungen je Karte (HUD, Meldungen, Menü)
+const MAP_NAMES = {
+  hoth: { reb: 'Rebellen', imp: 'Imperium', troops: 'Sturmtruppen', walker: 'AT-ST', flyer: 'Schneegleiter', gen: 'Schildgenerator', turret: 'Geschützturm' },
+  endor: { reb: 'Rebellen', imp: 'Imperium', troops: 'Sturmtruppen', walker: 'AT-ST', flyer: 'Schneegleiter', gen: 'Bunkertor', turret: 'Bunkergeschütz' },
+  geonosis: { reb: 'Klonkrieger', imp: 'Droidenarmee', troops: 'Kampfdroiden', walker: 'AAT', flyer: 'Kanonenboot', gen: 'Kommandozentrale', turret: 'Geschützturm' },
+};
+const GEO = { cmd: new THREE.Vector3(0, 0, 175), pad: new THREE.Vector3(52, 0, 72) };
+// Laserfarbe je Seite: Hoth/Endor Rebellen rot, Imperium grün; Geonosis Klone blau, Droiden rot
+function boltCol(f) {
+  if (MAP.id === 'geonosis') return f === REB ? [0.3, 0.55, 1] : [1, 0.35, 0.25];
+  return f === REB ? [1, 0.35, 0.25] : [0.4, 1, 0.3];
+}
 const ENDOR = {
   bunker: { x: 0, z: 50, w: 26, d: 16, h: 6.4 },    // Vorderkante bei z, Tiefe nach +z
   lanes: [-56, -19, 19, 56],                         // Waldwege, auf denen die AT-STs anrücken
@@ -44,11 +58,14 @@ const SKY_COL = { zen: new THREE.Vector3(), hor: new THREE.Vector3(), gnd: new T
 const MAP_LOOK = {
   hoth: { sun: [-0.55, 0.62, 0.56], horizon: [0.62, 0.72, 0.84], zen: [0.10, 0.24, 0.58], gnd: [0.70, 0.75, 0.82], envGround: [0.75, 0.8, 0.88],
     sunCol: [1.0, 0.93, 0.82], sunI: 1.45, hemiSky: [0.55, 0.65, 0.85], hemiGnd: [0.55, 0.58, 0.62], hemi: 0.15, fog: [120, 1100], exposure: 0.9, dust: [1.1, 1.13, 1.18] },
+  geonosis: { sun: [0.38, 0.42, -0.82], horizon: [0.8, 0.36, 0.11], zen: [0.46, 0.22, 0.08], gnd: [0.6, 0.27, 0.1], envGround: [0.5, 0.22, 0.08],
+    sunCol: [1.0, 0.78, 0.52], sunI: 1.75, hemiSky: [0.85, 0.55, 0.35], hemiGnd: [0.55, 0.3, 0.16], hemi: 0.38, fog: [70, 600], exposure: 0.95, dust: [0.95, 0.55, 0.3] },
   endor: { sun: [-0.42, 0.8, 0.43], horizon: [0.26, 0.33, 0.31], zen: [0.22, 0.4, 0.66], gnd: [0.16, 0.2, 0.13], envGround: [0.12, 0.13, 0.07],
     sunCol: [1.0, 0.84, 0.62], sunI: 1.8, hemiSky: [0.5, 0.62, 0.5], hemiGnd: [0.24, 0.19, 0.11], hemi: 0.42, fog: [20, 270], exposure: 1.05, dust: [0.36, 0.29, 0.2] },
 };
 function setMap(id) {
-  MAP.id = id === 'endor' ? 'endor' : 'hoth';
+  MAP.id = MAP_IDS.includes(id) ? id : 'hoth';
+  MAP.names = MAP_NAMES[MAP.id];
   const L = MAP.look = MAP_LOOK[MAP.id];
   SUN_DIR.set(L.sun[0], L.sun[1], L.sun[2]).normalize();
   HORIZON.setRGB(L.horizon[0], L.horizon[1], L.horizon[2]);
@@ -56,8 +73,10 @@ function setMap(id) {
   if (MAP.id === 'endor') {
     WORLD.size = 640; TR.len = 70;
     const B = ENDOR.bunker; WORLD.gen.set(B.x, 0, B.z);
+  } else if (MAP.id === 'geonosis') {
+    WORLD.size = 800; TR.len = 120; WORLD.gen.copy(GEO.cmd); WORLD.pad.copy(GEO.pad);
   } else {
-    WORLD.size = 900; TR.len = 175; WORLD.gen.set(0, 0, 190);
+    WORLD.size = 900; TR.len = 175; WORLD.gen.set(0, 0, 190); WORLD.pad.set(45, 0, 62);
   }
   OBST.clear();
   buildHeightCache();
@@ -66,6 +85,7 @@ function setMap(id) {
 
 function trenchZ(x) {
   if (MAP.id === 'endor') return 6 + 2.5 * Math.sin(x * 0.045);
+  if (MAP.id === 'geonosis') return 3 * Math.sin(x * 0.03) + 1.5 * Math.sin(x * 0.09 + 2);
   return 3.5 * Math.sin(x * 0.027) + 1.8 * Math.sin(x * 0.083 + 1.3);
 }
 
@@ -86,8 +106,24 @@ function endorHeightRaw(x, z) {
   return h + m;
 }
 
+// Geonosis: flache Wüste mit Dünen, Tafelbergen (Stufen) am Rand
+function geonosisHeightRaw(x, z) {
+  let h = (fbm(x * 0.006 + 3, z * 0.006 + 11) - 0.45) * 9 + Math.sin(x * 0.045 + fbm(x * 0.02, z * 0.02) * 4) * 0.7;
+  const flat = (cx, cz, r0, r1) => smooth(r0, r1, Math.hypot(x - cx, z - cz));
+  h *= flat(GEO.cmd.x, GEO.cmd.z, 30, 75) * flat(GEO.pad.x, GEO.pad.z, 22, 50);
+  if (Math.abs(x) < TR.len + 20) h *= lerp(1, smooth(4, 30, Math.abs(z - trenchZ(x))), 0.8);
+  const ax = Math.abs(x);
+  let t = smooth(230, 330, ax) * (35 + fbm(x * 0.008, z * 0.008) * 60) + smooth(270, 420, z) * (40 + fbm(x * 0.01 + 4, z * 0.01) * 50)
+    + smooth(-560, -720, z) * (30 + fbm(x * 0.01, 7) * 40);
+  // Tafelberge: Höhe in Stufen mit steilen Kanten
+  const S = 13, q = t / S, fl = Math.floor(q);
+  t = (fl + smooth(0.72, 0.95, q - fl)) * S;
+  return h + t;
+}
+
 function baseHeightRaw(x, z) {
   if (MAP.id === 'endor') return endorHeightRaw(x, z);
+  if (MAP.id === 'geonosis') return geonosisHeightRaw(x, z);
   let h = (fbm(x * 0.006 + 10, z * 0.006 + 3) - 0.45) * 7;
   const ax = Math.abs(x);
   let m = 0;
@@ -135,7 +171,7 @@ function trenchFactor(x) { return 1 - smooth(TR.len, TR.len + 8, Math.abs(x)); }
 function heightAt(x, z) {
   let h = baseHeight(x, z);
   if (MAP.id === 'endor') { const r = bunkerRoofAt(x, z); return r > h ? r : h; }   // Bunkerdach ist begehbar
-  if (Math.abs(x) < TR.len + 8) {
+  if (MAP.id === 'hoth' && Math.abs(x) < TR.len + 8) {
     const d = z - trenchZ(x);
     if (d > -6 && d < 3) h += trenchProfile(d) * trenchFactor(x);
   }
@@ -255,12 +291,12 @@ function genSeg(x0, y0, z0, dx, dy, dz) {
 }
 // Spieler/Einheiten aus Generator bzw. Bunker und Hindernissen schieben
 function pushOutWorld(pos, rad) {
-  if (MAP.id === 'hoth') {
+  let hit = false;
+  if (MAP.id !== 'endor') {
     const dx = pos.x - WORLD.gen.x, dz = pos.z - WORLD.gen.z, d = Math.hypot(dx, dz), R = 14 + rad;
-    if (d < R && d > 0.001) { pos.x = WORLD.gen.x + dx / d * R; pos.z = WORLD.gen.z + dz / d * R; return true; }
-    return false;
+    if (d < R && d > 0.001) { pos.x = WORLD.gen.x + dx / d * R; pos.z = WORLD.gen.z + dz / d * R; hit = true; }
   }
-  return OBST.push(pos, rad);
+  return OBST.push(pos, rad) || hit;
 }
 
 // ---------------------------------------------------------------- Farben & Texturen
@@ -380,6 +416,27 @@ function buildTextures() {
       d[i] = (nx / l * 0.5 + 0.5) * 255; d[i + 1] = (ny / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
     }
   }, false);
+  // Geonosis: rötlicher Sand mit Windrippeln und Geröll
+  const sh2 = new Float32Array(S * S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const n = tfbm(x / S * P, y / S * P, P, 4);
+    const rip = Math.sin((y / S * 24 + n * 3.5) * TAU) * 0.5 + 0.5;
+    sh2[y * S + x] = n * 0.6 + rip * 0.25 + (Math.random() < 0.012 ? 0.5 : 0);
+  }
+  TEX.sand = dataTexture(S, (d) => {
+    for (let i = 0; i < S * S; i++) {
+      const h = sh2[i], v = (Math.random() - 0.5) * 10;
+      d[i * 4] = 200 + h * 40 + v; d[i * 4 + 1] = 126 + h * 30 + v; d[i * 4 + 2] = 78 + h * 20 + v; d[i * 4 + 3] = 255;
+    }
+  }, true);
+  TEX.sandN = dataTexture(S, (d) => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const h = (xx, yy) => sh2[((yy + S) % S) * S + ((xx + S) % S)];
+      const nx = (h(x - 1, y) - h(x + 1, y)) * 2.5, ny = (h(x, y - 1) - h(x, y + 1)) * 2.5;
+      const l = Math.hypot(nx, ny, 1), i = (y * S + x) * 4;
+      d[i] = (nx / l * 0.5 + 0.5) * 255; d[i + 1] = (ny / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+    }
+  }, false);
   // Rinde der Mammutbäume: senkrechte Faserstreifen
   TEX.bark = canvasTex(256, (ctx, s2) => {
     ctx.fillStyle = '#8a5a3e'; ctx.fillRect(0, 0, s2, s2);
@@ -412,11 +469,12 @@ function buildMaterials() {
   MAT.terrain = new THREE.MeshStandardMaterial({ vertexColors: true, map: TEX.snow, normalMap: TEX.snowN, normalScale: new THREE.Vector2(1.5, 1.5), roughness: 0.82, metalness: 0, envMapIntensity: 0.5 });
   MAT.gun = new THREE.MeshStandardMaterial({ vertexColors: true, map: TEX.panel, roughness: 0.5, metalness: 0.3, envMapIntensity: 0.45 });
   MAT.forest = new THREE.MeshStandardMaterial({ vertexColors: true, map: TEX.forest, normalMap: TEX.forestN, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.95, metalness: 0, envMapIntensity: 0.4 });
+  MAT.sand = new THREE.MeshStandardMaterial({ vertexColors: true, map: TEX.sand, normalMap: TEX.sandN, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.9, metalness: 0, envMapIntensity: 0.45 });
   MAT.bark = new THREE.MeshStandardMaterial({ vertexColors: true, map: TEX.bark, roughness: 0.92, metalness: 0, envMapIntensity: 0.35 });
   MAT.leaf = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.4 });
   MAT.glow = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(6, 2.2, 0.6), toneMapped: true });
   // Einfache Lambert-Varianten für die Grafikstufe "Niedrig" (schwache Handys)
-  for (const k of ['vehicle', 'building', 'soldier', 'rock', 'terrain', 'gun', 'forest', 'bark', 'leaf']) {
+  for (const k of ['vehicle', 'building', 'soldier', 'rock', 'terrain', 'gun', 'forest', 'bark', 'leaf', 'sand']) {
     const m = MAT[k];
     MAT_HI[k] = m;
     MAT_LO[k] = new THREE.MeshLambertMaterial({ vertexColors: true, map: m.map, flatShading: m.flatShading, side: m.side });
@@ -596,6 +654,7 @@ function buildEnvironment(renderer, scene) {
 
 function buildSky(scene) {
   scene.add(skyMesh(2400));
+  if (MAP.id === 'geonosis') { buildGeonosisSky(scene); return; }
   if (MAP.id !== 'hoth') return;
   const cloudTex = canvasTex(256, (ctx) => {
     for (let i = 0; i < 26; i++) {
@@ -837,14 +896,14 @@ const FX = {
     for (let i = 0; i < n; i++) this.smoke.spawn(p.x, p.y + 0.1, p.z, rand(-1.8, 1.8), rand(1, 3.5), rand(-1.8, 1.8), rand(0.5, 1.1), 0.35, big ? 2.8 : 1.2, c[0], c[1], c[2], 0.8, 3, 2);
   },
   impact(p, f) {
-    const r = f === REB ? 1 : 0.35, g = f === REB ? 0.35 : 1;
-    this.sparks(p, 6, r, g, 0.25);
-    this.fire.spawn(p.x, p.y + 0.1, p.z, 0, 0, 0, 0.12, 1.2, 0.3, r * 3, g * 3, 0.3, 1);
+    const [r, g, b] = boltCol(f);
+    this.sparks(p, 6, r, g, b);
+    this.fire.spawn(p.x, p.y + 0.1, p.z, 0, 0, 0, 0.12, 1.2, 0.3, r * 3, g * 3, b * 3, 1);
     this.snowPuff(p, false);
     if (Math.random() < 0.5) this.scorch(p, rand(0.5, 0.9));
   },
   muzzle(p, f, big) {
-    const r = f === REB ? 1 : 0.4, g = f === REB ? 0.35 : 1, b = 0.3;
+    const [r, g, b] = boltCol(f);
     this.fire.spawn(p.x, p.y, p.z, 0, 0, 0, 0.07, big ? 1.4 : 0.55, 0.2, r * 4, g * 4, b * 2, 1);
   },
   explosion(p, size) {
@@ -889,11 +948,13 @@ class SnowFall {
     this.t = 0; this.fall = 1.6; this.drift = 1.8;
   }
   // Hoth: Schneefall, Endor: Pollen und Staub, die langsam im Sonnenlicht schweben
-  setStyle(endor) {
-    this.fall = endor ? 0.12 : 1.6; this.drift = endor ? 0.25 : 1.8;
-    this.points.material.size = endor ? 0.05 : 0.1;
-    this.points.material.color.setRGB(...(endor ? [2.2, 1.9, 1.3] : [1.3, 1.35, 1.45]));
-    this.points.material.opacity = endor ? 0.7 : 0.9;
+  // Geonosis: vom Wind getriebener roter Staub
+  setStyle(id) {
+    const S = { hoth: [1.6, 1.8, 0.1, [1.3, 1.35, 1.45], 0.9], endor: [0.12, 0.25, 0.05, [2.2, 1.9, 1.3], 0.7], geonosis: [0.5, 7, 0.06, [1.5, 0.8, 0.45], 0.55] }[id] || [1.6, 1.8, 0.1, [1.3, 1.35, 1.45], 0.9];
+    this.fall = S[0]; this.drift = S[1];
+    this.points.material.size = S[2];
+    this.points.material.color.setRGB(...S[3]);
+    this.points.material.opacity = S[4];
   }
   update(dt, cam) {
     this.t += dt;

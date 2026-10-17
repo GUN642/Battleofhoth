@@ -1,11 +1,11 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
+  "versionCode": 8,
+  "versionName": "1.7",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Neue Karte Endor: Waldmond mit Mammutbäumen, Farnen und Lichtstrahlen – im Menü unter „Karte“ wählbar",
-    "Rebellen verteidigen den Bunkereingang, mit Han Solo, Chewbacca, R2-D2 und C-3PO",
-    "Ewoks kämpfen mit Speeren und lösen Baumstammfallen gegen die AT-STs aus (auch per Hand mit E)",
-    "Bunkergeschütze auf dem Dach, Imperium kann Sprengladungen am Bunkertor anbringen, auch im LAN-Mehrspieler"
+    "Neue Karte Geonosis: Wüste mit Felsnadeln und Tafelbergen, Klonkrieger gegen die Droidenarmee",
+    "Captain Rex und Commander Cody, AAT-Panzer der Droiden (auch selbst steuerbar)",
+    "LAAT-Kanonenboote: selbst fliegen, Klonkrieger absetzen – KI-Kanonenboote fliegen Verstärkung an die Front",
+    "Klone schießen blau, Droiden rot; Ewok-Speere auf Endor jetzt als Speere sichtbar"
   ]
 }

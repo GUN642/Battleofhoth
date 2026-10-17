@@ -70,6 +70,19 @@ Im Menü unter **Karte** lässt sich statt Hoth der Waldmond **Endor** wählen (
 - **Imperium:** Ziel ist das Bunkertor. AT-STs beschießen es, Sturmtruppen sprengen es auf, sobald die Linie fällt,
   und als Spieler kannst du am Tor eine **Sprengladung** anbringen (eine pro Leben). Sturmtruppen erhalten eine Welle Verstärkung.
 
+### Karte Geonosis
+Die dritte Karte zeigt die Schlacht um **Geonosis** aus den Klonkriegen: rote Wüste mit geonosianischen Felsnadeln, Tafelbergen,
+Angriffsschiffen der Republik am Himmel und gelandeten Kernschiffen der Separatisten am Horizont.
+
+- **Klonkrieger** (Seite Rebellen) verteidigen ihre **Kommandozentrale** in einem Felsbau, angeführt von **Captain Rex** (blau)
+  und **Commander Cody** (orange). Klone schießen blau, Droiden rot.
+- Die **Droidenarmee** (Seite Imperium) greift mit Kampfdroiden und **AAT-Schwebepanzern** an und erhält zwei Nachschubwellen.
+  Als Droide kannst du einen AAT selbst steuern.
+- AATs lassen sich nur mit **Geschütztürmen** oder **LAAT-Kanonenbooten** zerstören.
+- **Kanonenboote:** Zwei stehen an der Landezone hinter der Linie (mit E einsteigen), weitere fliegen als KI. Gefallene Klone warten auf
+  Transport: KI-Kanonenboote fliegen sie in Gruppen an die Front. Im eigenen Kanonenboot setzt du wartende Klone mit **F / Y / KABEL**
+  ab, sobald du tiefer als 14 m fliegst – auch mitten im Gelände, um die Droiden zu flankieren.
+
 ### Waffen
 Zu Fuß stehen vier Waffen zur Wahl (Rebellen / Imperium jeweils mit eigenem Modell). Die Waffenleiste unten
 zeigt die aktive Waffe und die verbleibenden Thermaldetonatoren.
@@ -84,7 +97,7 @@ zeigt die aktive Waffe und die verbleibenden Thermaldetonatoren.
 Jede Blasterwaffe hat ihre eigene Hitzeanzeige; beim Wechseln kühlen die anderen ab. Läufer bleiben auch gegen
 Detonatoren immun – dafür braucht es weiterhin Türme oder Schneegleiter.
 
-Im Hauptmenü lässt sich einstellen: Karte (Hoth oder Endor), Anzahl der Rebellen (dein Team), Ewoks (Endor), Sturmtruppen, AT-ST,
+Im Hauptmenü lässt sich einstellen: Karte (Hoth, Endor oder Geonosis), Anzahl der Rebellen (dein Team), Ewoks (Endor), Sturmtruppen, AT-ST,
 AT-AT und KI-Schneegleiter (Hoth), Geschütztürme bzw. Bunkergeschütze, deine Leben, Schwierigkeit, Blick-Empfindlichkeit und Grafik.
 
 ### Steuerung
@@ -145,6 +158,7 @@ Der Mehrspieler funktioniert nur in der Android-App, nicht in der Browser-Versio
   - `world.js` Gelände, Texturen, Materialien, Himmel, Effekte · `audio.js` Sound-Synthese ·
     `units.js` Einheiten, KI, Laser · `post.js` Bloom/Tonemapping · `game.js` Spieler, HUD, Menü ·
     `nav.js` Controller & Menü-Navigation · `net.js` LAN-Mehrspieler · `endor.js` Karte Endor (Wald, Bunker, Helden, Ewoks, Fallen) ·
+    `geonosis.js` Karte Geonosis (Wüste, Klone, Droiden, AAT, Kanonenboote) ·
     `update.js` Update-Dialog
   - Mehrspieler im Browser testen: `web/` über einen lokalen Webserver öffnen und in zwei Fenstern
     `index.html?net=test` aufrufen (Transport über BroadcastChannel)

@@ -488,6 +488,7 @@ function updateEwok(s, dt) {
 // ---------------------------------------------------------------- Helden
 function heroGeos(kind) {
   const H = Math.PI / 2;
+  if (kind === 'rex' || kind === 'cody') return cloneHeroGeos(kind);
   if (kind === 'chewie') {
     const fur = 0x6e4a2c, fur2 = 0x5a3b22, face = 0x8a6a48, belt = 0x3a2a1a, dark = 0x1a1410;
     return {
@@ -550,7 +551,7 @@ class HeroMesh {
 }
 function makeHero(kind, x) {
   const s = new Soldier(REB, x, trenchZ(x) + rand(-0.4, 0.1), 3);
-  s.special = 'hero'; s.heroKind = kind; s.name = kind === 'chewie' ? 'Chewbacca' : 'Han Solo';
+  s.special = 'hero'; s.heroKind = kind; s.name = { chewie: 'Chewbacca', han: 'Han Solo', rex: 'Captain Rex', cody: 'Commander Cody' }[kind];
   if (kind === 'chewie') { s.h = 2.3; s.ah = 2.0; s.r = 0.45; }
   s.mesh = new HeroMesh(kind, s.name);
   return s;
@@ -773,7 +774,7 @@ function updateEndor(dt) {
   }
 }
 function drawEndor() {
-  if (MAP.id !== 'endor') return;
+  if (MAP.id === 'hoth') return;
   ewokR.update(G.rebels);
   for (const s of G.rebels) if (s.special === 'hero') s.mesh.sync(s);
 }

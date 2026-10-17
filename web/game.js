@@ -8,19 +8,20 @@ const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const MAX_REBELS = 60, MAX_TROOPERS = 150, MAX_EWOKS = 40;
 
 // ---------------------------------------------------------------- Einstellungen
-//  map: Einstellung gilt nur auf dieser Karte (sonst ausgeblendet)
+//  map: Einstellung gilt nur auf diesen Karten (0 Hoth, 1 Endor, 2 Geonosis), sonst ausgeblendet
+//  label/names als Liste: je Karte eigene Bezeichnung
 const SETTINGS = [
-  { key: 'map', group: 'Schlachtfeld', label: 'Karte', min: 0, max: 1, def: 0, names: ['Hoth', 'Endor'], wide: true },
-  { key: 'faction', label: 'Du kämpfst für', min: 0, max: 1, def: 0, names: ['Rebellen', 'Imperium'], wide: true },
-  { key: 'rebels', group: 'Truppen', label: 'Rebellen', min: 0, max: MAX_REBELS, def: 20 },
-  { key: 'rebLives', label: 'Leben pro Rebell (KI)', min: 1, max: 5, def: 3 },
-  { key: 'ewoks', label: 'Ewoks', min: 0, max: MAX_EWOKS, def: 18, map: 1 },
-  { key: 'troopers', label: 'Sturmtruppen', min: 0, max: MAX_TROOPERS, def: 40 },
-  { key: 'atst', label: 'AT-ST', min: 0, max: 10, def: 3 },
-  { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2, map: 0 },
-  { key: 'aiSpeeders', label: 'Schneegleiter (KI)', min: 0, max: 8, def: 2, map: 0 },
-  { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6, map: 0 },
-  { key: 'bunkerGuns', label: 'Geschütze auf dem Bunker', min: 0, max: 2, def: 2, map: 1 },
+  { key: 'map', group: 'Schlachtfeld', label: 'Karte', min: 0, max: 2, def: 0, names: ['Hoth', 'Endor', 'Geonosis'], wide: true },
+  { key: 'faction', label: 'Du kämpfst für', min: 0, max: 1, def: 0, names: [['Rebellen', 'Imperium'], ['Rebellen', 'Imperium'], ['Klonkrieger', 'Droiden']], wide: true },
+  { key: 'rebels', group: 'Truppen', label: ['Rebellen', 'Rebellen', 'Klonkrieger'], min: 0, max: MAX_REBELS, def: 20 },
+  { key: 'rebLives', label: ['Leben pro Rebell (KI)', 'Leben pro Rebell (KI)', 'Leben pro Klon (KI)'], min: 1, max: 5, def: 3 },
+  { key: 'ewoks', label: 'Ewoks', min: 0, max: MAX_EWOKS, def: 18, map: [1] },
+  { key: 'troopers', label: ['Sturmtruppen', 'Sturmtruppen', 'Kampfdroiden'], min: 0, max: MAX_TROOPERS, def: 40 },
+  { key: 'atst', label: ['AT-ST', 'AT-ST', 'AAT-Panzer'], min: 0, max: 10, def: 3 },
+  { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2, map: [0] },
+  { key: 'aiSpeeders', label: ['Schneegleiter (KI)', '', 'Kanonenboote (KI)'], min: 0, max: 8, def: 2, map: [0, 2] },
+  { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6, map: [0, 2] },
+  { key: 'bunkerGuns', label: 'Geschütze auf dem Bunker', min: 0, max: 2, def: 2, map: [1] },
   { key: 'lives', group: 'Spiel', label: 'Deine Leben', min: 1, max: 10, def: 3 },
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
   { key: 'sens', label: 'Blick-Empfindlichkeit', min: 1, max: 10, def: 5 },
@@ -35,9 +36,11 @@ function saveCfg() { try { localStorage.setItem('hothCfg', JSON.stringify(CFG));
 function buildSettingsUI() {
   const root = $('settings');
   root.innerHTML = '';
-  const mapNo = CFG.map === 1 ? 1 : 0;
-  for (const s of SETTINGS) {
-    if (s.map !== undefined && s.map !== mapNo) continue;
+  const mapNo = clamp(CFG.map | 0, 0, 2);
+  for (const s0 of SETTINGS) {
+    if (s0.map !== undefined && !s0.map.includes(mapNo)) continue;
+    const s = Object.assign({}, s0, { label: Array.isArray(s0.label) ? s0.label[mapNo] : s0.label,
+      names: s0.names && Array.isArray(s0.names[0]) ? s0.names[mapNo] : s0.names });
     if (s.group) { const g = document.createElement('div'); g.className = 'group'; g.textContent = s.group; root.append(g); }
     const div = document.createElement('div'); div.className = 'set' + (s.wide ? ' wide' : '');
     if (s.names) {          // Auswahl als Segment-Schalter
@@ -113,7 +116,7 @@ scene.add(sun); scene.add(sun.target);
 
 buildTextures();
 buildMaterials();
-setMap(CFG.map === 1 ? 'endor' : 'hoth');
+setMap(MAP_IDS[CFG.map | 0] || 'hoth');
 FX.init(scene);
 const snow = new SnowFall(scene, 900);
 G.scene = scene;
@@ -135,7 +138,8 @@ function disposeTree(root) {
   root.clear();
 }
 function loadMap(id) {
-  id = id === 'endor' || id === 1 ? 'endor' : 'hoth';
+  if (typeof id === 'number') id = MAP_IDS[id];
+  if (!MAP_IDS.includes(id)) id = 'hoth';
   if (loadedMap === id) return;
   clearBattle();
   disposeTree(worldRoot);
@@ -148,27 +152,32 @@ function loadMap(id) {
   hemi.color.setRGB(...L.hemiSky); hemi.groundColor.setRGB(...L.hemiGnd);
   renderer.toneMappingExposure = L.exposure;
   if (id === 'endor') { buildSky(worldRoot); buildEndor(worldRoot, CFG.gfx | 0); }
+  else if (id === 'geonosis') { buildSky(worldRoot); buildGeonosis(worldRoot, CFG.gfx | 0); }
   else { worldRoot.add(buildTerrainMesh()); buildSky(worldRoot); buildBaseProps(worldRoot); }
-  snow.setStyle(id === 'endor');
+  snow.setStyle(id);
   restyleSoldiers();
   applyGfx();
   updateMenuText();
 }
 // Menütexte passend zur Karte
+const MENU_TEXT = {
+  hoth: ['Rebellen-Allianz · Echo Base', 'Battle<br>of Hoth', 'Die imperiale Armee landet auf Hoth. Verteidige als Rebell den Schützengraben – oder führe als Imperialer die AT-ATs gegen Echo Base.'],
+  endor: ['Rebellen-Allianz · Endor', 'Battle<br>of Endor', 'Auf dem Waldmond Endor verteidigen Rebellen, Han Solo, Chewbacca und die Ewoks den Bunkereingang gegen Sturmtruppen und AT-STs.'],
+  geonosis: ['Klonkriege · Geonosis', 'Battle of<br>Geonosis', 'Klonkrieger der Republik mit Captain Rex und Commander Cody gegen die Droidenarmee und ihre AAT-Panzer – mit Kanonenbooten zur Verstärkung.'],
+};
 function updateMenuText() {
-  const e = MAP.id === 'endor';
-  document.querySelector('#menu .kicker').textContent = e ? 'Rebellen-Allianz · Endor' : 'Rebellen-Allianz · Echo Base';
-  document.querySelector('#menu h1').innerHTML = e ? 'Battle<br>of Endor' : 'Battle<br>of Hoth';
-  document.querySelector('#menu .sub').textContent = e
-    ? 'Auf dem Waldmond Endor verteidigen Rebellen, Han Solo, Chewbacca und die Ewoks den Bunkereingang gegen Sturmtruppen und AT-STs.'
-    : 'Die imperiale Armee landet auf Hoth. Verteidige als Rebell den Schützengraben – oder führe als Imperialer die AT-ATs gegen Echo Base.';
+  const t = MENU_TEXT[MAP.id];
+  document.querySelector('#menu .kicker').textContent = t[0];
+  document.querySelector('#menu h1').innerHTML = t[1];
+  document.querySelector('#menu .sub').textContent = t[2];
 }
 function onMapSetting() {
   buildSettingsUI();
   if (state === 'menu') startDemo();
 }
-const boltRed = new BoltRenderer(3.2, 0.06, 0.03, 500), boltGreen = new BoltRenderer(0.12, 3.0, 0.06, 500);
-boltRed.addTo(scene); boltGreen.addTo(scene);
+const boltRed = new BoltRenderer(3.2, 0.06, 0.03, 500), boltGreen = new BoltRenderer(0.12, 3.0, 0.06, 500), boltBlue = new BoltRenderer(0.1, 0.45, 3.2, 500);
+const boltSpear = new BoltRenderer(0.06, 0.035, 0.015, 120, true);      // Ewok-Speere (nicht leuchtend)
+boltRed.addTo(scene); boltGreen.addTo(scene); boltBlue.addTo(scene); boltSpear.addTo(scene);
 
 // Grafikstufen: 0 Niedrig (keine Schatten/kein Bloom), 1 Mittel, 2 Hoch (große Schatten, Kantenglättung)
 const GFX = [
@@ -226,6 +235,10 @@ const WEAPONS = [
   { names: ['Thermaldetonator', 'Thermaldetonator'], short: 'Detonator', nade: true, rate: 0.9, zoom: 72 },
 ];
 const NADES_PER_LIFE = 3;
+// Waffennamen auf Geonosis (Klonkrieger / Kampfdroiden)
+const WEAPON_NAMES_GEO = [['DC-15A-Blastergewehr', 'E-5-Blastergewehr'], ['Z-6-Rotationsblaster', 'E-5C-Repetierblaster'],
+  ['DC-15x-Scharfschützengewehr', 'E-5s-Scharfschützengewehr'], ['Thermaldetonator', 'Thermaldetonator']];
+function weaponName(i, f) { return (MAP.id === 'geonosis' ? WEAPON_NAMES_GEO[i] : WEAPONS[i].names)[f === IMP ? 1 : 0]; }
 
 // Ego-Ansicht: ein Modell je Seite und Waffe; tip = Laufmündung
 const gun = new THREE.Group();
@@ -299,7 +312,7 @@ const P = G.player = {
     this.yaw = t.aimYaw - Math.PI; this.pitch = 0;
     if (destroyed) G.msg('Du wurdest aus dem zerstörten Turm geschleudert!', 'turret2');
   },
-  speederDestroyed() { const sp = this.speeder; this.speeder = null; killPlayer('Schneegleiter abgeschossen', sp ? sp.pos : null); },
+  speederDestroyed() { const sp = this.speeder; this.speeder = null; killPlayer((sp ? sp.label : 'Schneegleiter') + ' abgeschossen', sp ? sp.pos : null); },
   exitWalker() {
     const w = this.walker; if (!w) return;
     w.pilot = null; w.ctrl.fire = false; w.ctrl.fwd = 0; w.target = null; w.thinkCd = 0;
@@ -318,7 +331,7 @@ function spawnPlayer(first) {
     const free = G.atsts.concat(G.atats).filter(w => w.alive && !w.pilot && !w.tangled);
     const w = free.find(v => v.type === 'atst') || free[0];
     if (w) {
-      const side = (w.type === 'atat' ? 9 : 3.3) * (Math.random() < 0.5 ? 1 : -1);
+      const side = (w.type === 'atat' ? 9 : w.aat ? 4.4 : 3.3) * (Math.random() < 0.5 ? 1 : -1);
       P.pos.set(w.pos.x + Math.cos(w.yaw) * side, 0, w.pos.z - Math.sin(w.yaw) * side - 1.5);
       if (w.goal) { w.goal.copy(w.pos); w.goalT = 8; }          // Läufer wartet kurz auf seinen Piloten
     } else {
@@ -373,8 +386,9 @@ G.onSpecialDown = (s) => {
   if (s.special === 'hero') G.msg(s.name + ' ist gefallen!' + (s.livesLeft > 0 ? ' Gleich ist er zurück an der Linie.' : ''), 'hero' + s.heroKind);
 };
 G.onPilotDown = (w) => {
-  if (P.walker === w) killPlayer(WALKER_NAME[w.type] + ' zerstört', camera.position);
-  else if (w.pilot && w.pilot.remote) NET.remoteDie(w.pilot, WALKER_NAME[w.type] + ' zerstört');
+  const nm = w.label || WALKER_NAME[w.type];
+  if (P.walker === w) killPlayer(nm + ' zerstört', camera.position);
+  else if (w.pilot && w.pilot.remote) NET.remoteDie(w.pilot, nm + ' zerstört');
 };
 G.onRemoteDown = (av, cause) => NET.remoteDie(av, cause);
 G.onRemoteEject = (av) => NET.sendTo(av.id, { t: 'eject' });
@@ -510,7 +524,7 @@ function aimDistance(o, d, maxD) {
       if (_tmp.addScaledVector(d, -t).lengthSq() < 0.6) best = t;
     }
     for (const tu of G.turrets) if (tu.alive) sphere(_tmp2.set(tu.pos.x, tu.pos.y + tu.hy * 0.8, tu.pos.z), 2.2);
-    for (const sp of G.speeders) if (sp.alive && sp.mode !== 'gone') sphere(sp.pos, 2.6);
+    for (const sp of G.speeders) if (sp.alive && sp.mode !== 'gone') sphere(sp.hc, sp.rad);
     if (G.genHP > 0) { const t = genSeg(o.x, o.y, o.z, d.x * best, d.y * best, d.z * best); if (t >= 0) best *= t; }
     return best;
   }
@@ -536,7 +550,7 @@ function nearestUsable() {
   if (P.faction === IMP) {
     for (const w of G.atsts.concat(G.atats)) {
       if (!w.alive || w.pilot || w.tangled) continue;
-      const d = Math.hypot(w.pos.x - P.pos.x, w.pos.z - P.pos.z), r = w.type === 'atat' ? 11 : 5;
+      const d = Math.hypot(w.pos.x - P.pos.x, w.pos.z - P.pos.z), r = w.type === 'atat' ? 11 : w.aat ? 6.5 : 5;
       if (d < r && d < bd) { bd = d; best = w; }
     }
     return best;
@@ -688,7 +702,7 @@ function updatePlayer(dt) {
     } else if (firing && P.fireCd <= 0 && P.overheat <= 0 && P.switchT <= 0) {
       // Feuern (aus der Hüfte ungenauer als mit Visier)
       P.fireCd = W.rate; P.heat += W.heat; P.recoil = 1;
-      if (P.heat >= 1) { P.heat = 1; P.overheat = W.cool; G.msg(W.names[P.faction] + ' überhitzt!', 'heat'); }
+      if (P.heat >= 1) { P.heat = 1; P.overheat = W.cool; G.msg(weaponName(P.weapon, P.faction) + ' überhitzt!', 'heat'); }
       camera.updateMatrixWorld(true);
       camForward(_fwd);
       const dist = aimDistance(camera.position, _fwd, W.range);
@@ -700,13 +714,15 @@ function updatePlayer(dt) {
     const u = nearestUsable();
     if (!u) endorUse(prompts, use);
     if (u) {
-      prompts.push(u.type === 'turret' ? (u.roof ? '[E] Bunkergeschütz bemannen' : '[E] Geschützturm bemannen') : u.type === 'speeder' ? '[E] In den Schneegleiter steigen' : '[E] ' + WALKER_NAME[u.type] + ' steuern');
+      prompts.push(u.type === 'turret' ? (u.roof ? '[E] Bunkergeschütz bemannen' : '[E] Geschützturm bemannen')
+        : u.type === 'speeder' ? (u.laat ? '[E] Ins Kanonenboot steigen' : '[E] In den Schneegleiter steigen') : '[E] ' + (u.label || WALKER_NAME[u.type]) + ' steuern');
       if (use) {
         if (u.type === 'atst' || u.type === 'atat') {
           P.mode = 'walker'; P.walker = u; u.pilot = P;
           P.yaw = u.yaw - Math.PI; P.pitch = 0;
           G.msg(u.type === 'atat' ? 'AT-AT übernommen! Feuere auf Geschütztürme und den Schildgenerator. Vorsicht vor Schleppkabeln!'
             : MAP.id === 'endor' ? 'AT-ST übernommen! Zerstöre das Bunkertor – Vorsicht vor den Baumstammfallen der Ewoks über den Waldwegen!'
+            : MAP.id === 'geonosis' ? 'AAT-Panzer übernommen! Brich durch die Linie der Klone und zerstöre ihre Kommandozentrale.'
             : 'AT-ST übernommen! Räume den Schützengraben und zerstöre die Geschütztürme.', 'win');
         } else if (u.type === 'turret') {
           P.mode = 'turret'; P.turret = u; u.manned = true; u.mannedBy = P;
@@ -715,7 +731,8 @@ function updatePlayer(dt) {
         } else {
           P.mode = 'speeder'; P.speeder = u; u.mode = 'player'; u.pilot = P; u.speed = 20; u.pitch = 0.35;
           P.yaw = u.yaw - Math.PI; P.pitch = 0.3;
-          G.msg('Schneegleiter gestartet! Flieg tief an ein AT-AT und feuere das Schleppkabel ab.', 'sin');
+          G.msg(u.laat ? 'Kanonenboot gestartet! Bekämpfe die AAT-Panzer und setze mit F/Y wartende Klonkrieger ab, wo du landest.'
+            : 'Schneegleiter gestartet! Flieg tief an ein AT-AT und feuere das Schleppkabel ab.', 'sin');
         }
       }
     }
@@ -782,20 +799,32 @@ function updatePlayer(dt) {
       P.yaw += angDiff(P.yaw, want) * Math.min(1, dt * 1.5);
       G.msg('Kehre zum Schlachtfeld zurück!', 'bounds');
     }
-    sp.fly(dt, P.yaw + Math.PI, P.pitch, 45 + fwdIn * 22);
+    sp.fly(dt, P.yaw + Math.PI, P.pitch, sp.laat ? 30 + fwdIn * 18 : 45 + fwdIn * 22);
     if (P.speeder !== sp) { setPrompt(prompts); return; }   // bei Kollision zerstört
     camForward(_fwd);
-    camera.position.copy(sp.pos).addScaledVector(_fwd, -11); camera.position.y += 4.2;
+    if (sp.laat) { camera.position.copy(sp.hc).addScaledVector(_fwd, -21); camera.position.y += 6.5; }
+    else { camera.position.copy(sp.pos).addScaledVector(_fwd, -11); camera.position.y += 4.2; }
     const ch = heightAt(camera.position.x, camera.position.z) + 1;
     if (camera.position.y < ch) camera.position.y = ch;
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = false;
     if (firing) sp.fire(_fwd, P);
-    const a = nearestTowable(sp);
-    if (a) {
+    const a = sp.laat ? null : nearestTowable(sp);
+    const alt0 = sp.pos.y - heightAt(sp.pos.x, sp.pos.z);
+    if (sp.laat) {
+      // Truppentransport: wartende Klonkrieger dort absetzen, wo das Kanonenboot tief schwebt
+      const waiting = NET.mode === 'client' ? NET.dq | 0 : G.dropQueue.length;
+      if (waiting > 0) prompts.push(alt0 < 14 ? (IS_TOUCH ? 'KABEL: ' : '[F] ') + Math.min(6, waiting) + ' Klonkrieger absetzen' : 'Tiefer fliegen (unter 14 m), um Truppen abzusetzen');
+      if (harpoon) {
+        if (!waiting) G.msg('Keine Klonkrieger an Bord – gefallene Klone warten hier auf Transport.', 'harp');
+        else if (alt0 >= 14) G.msg('Zum Absetzen tiefer fliegen (unter 14 m).', 'harp');
+        else if (NET.mode === 'client') NET.send({ t: 'drop', x: sp.pos.x, z: sp.pos.z });
+        else { const n = dropTroops(sp.pos, 6); G.msg(n + ' Klonkrieger abgesetzt!', 'drop'); }
+      }
+    } else if (a) {
       prompts.push(IS_TOUCH ? 'KABEL: Schleppkabel abfeuern!' : '[F] Schleppkabel abfeuern!');
       if (harpoon) { if (NET.mode === 'client') NET.requestTow(sp, a); else sp.startTow(a); }
-    } else if (harpoon) G.msg('Kein AT-AT in Reichweite – flieg tief (unter 17 m) und nah heran.', 'harp');
+    } else if (harpoon && !sp.laat) G.msg('Kein AT-AT in Reichweite – flieg tief (unter 17 m) und nah heran.', 'harp');
     const alt = sp.pos.y - heightAt(sp.pos.x, sp.pos.z);
     prompts.push(alt < 12 ? '[E] Aussteigen' : 'Höhe ' + alt.toFixed(0) + ' m');
     if (use) {
@@ -803,7 +832,7 @@ function updatePlayer(dt) {
         P.mode = 'foot'; P.speeder = null;
         P.pos.set(sp.pos.x, heightAt(sp.pos.x, sp.pos.z), sp.pos.z); P.onGround = true; P.pitch = 0;
         sp.mode = 'gone'; sp.alive = false; sp.respawnT = 4; sp.sync();
-        G.msg('Der Schneegleiter kehrt automatisch zur Landeplattform zurück.', 'back');
+        G.msg(sp.laat ? 'Das Kanonenboot kehrt automatisch zur Landezone zurück.' : 'Der Schneegleiter kehrt automatisch zur Landeplattform zurück.', 'back');
       } else G.msg('Zum Aussteigen tiefer fliegen (unter 12 m).', 'low');
     }
     P.pos.copy(sp.pos);
@@ -840,13 +869,13 @@ function updateHUD(dt) {
   const wkey = onFoot ? P.faction + ':' + P.weapon + ':' + P.nades + ':' + PAD.connected : '-';
   if (wkey !== lastWeaponKey) {
     const fi = P.faction === IMP ? 1 : 0;
-    if (onFoot && lastWeaponKey !== '#' && !lastWeaponKey.startsWith(P.faction + ':' + P.weapon + ':')) { $('wname').textContent = WEAPONS[P.weapon].names[fi]; $('wname').classList.add('on'); wnameT = 1.4; }
+    if (onFoot && lastWeaponKey !== '#' && !lastWeaponKey.startsWith(P.faction + ':' + P.weapon + ':')) { $('wname').textContent = weaponName(P.weapon, P.faction); $('wname').classList.add('on'); wnameT = 1.4; }
     lastWeaponKey = wkey;
     wb.classList.toggle('pad', PAD.connected);
     wb.querySelectorAll('.wslot').forEach((el, i) => {
       el.classList.toggle('on', i === P.weapon);
       const W = WEAPONS[i];
-      el.title = W.names[fi];
+      el.title = weaponName(i, P.faction);
       el.querySelector('small').textContent = W.nade ? '×' + P.nades : '';
       el.classList.toggle('empty', !!W.nade && P.nades <= 0);
     });
@@ -869,9 +898,10 @@ function updateHUD(dt) {
     const st = G.atsts.filter(s => s.alive).length, at = G.atats.filter(s => s.alive).length;
     const rc = P.faction === IMP ? 'foe' : 'friend', ic = P.faction === IMP ? 'friend' : 'foe';
     const chip = (c, name, val) => `<div class="chip ${c}"><span>${name}</span><b>${val}</b></div>`;
-    let html = chip(rc, 'Rebellen', reb + (res ? `<small>+${res}</small>` : ''));
+    const N = MAP.names;
+    let html = chip(rc, N.reb, reb + (res ? `<small>+${res}</small>` : ''));
     if (MAP.id === 'endor') html += chip(rc, 'Ewoks', G.rebels.filter(s => s.alive && s.special === 'ewok').length);
-    html += chip(ic, 'Sturmtruppen', imp + (impRes ? `<small>+${impRes}</small>` : '')) + chip(ic, 'AT-ST', st);
+    html += chip(ic, N.troops, imp + (impRes ? `<small>+${impRes}</small>` : '')) + chip(ic, N.walker, st);
     if (MAP.id === 'hoth') html += chip(ic, 'AT-AT', at);
     $('stats').innerHTML = html;
     $('lives').innerHTML = `<div class="chip"><span>Leben</span><b class="hearts">${'<i></i>'.repeat(Math.max(0, P.lives))}</b></div><div class="chip"><span>Abschüsse</span><b>${P.kills}</b></div>`;
@@ -899,6 +929,7 @@ function drawRadar() {
     if (sq) c.fillRect(rx - r, ry - r, r * 2, r * 2); else { c.beginPath(); c.arc(rx, ry, r, 0, TAU); c.fill(); }
   };
   dot(WORLD.gen.x, WORLD.gen.z, 5, imp ? '#ffcc33' : '#4fc3ff', MAP.id === 'endor');
+  if (G.transport) dot(G.transport.pos.x, G.transport.pos.z, 3, imp ? '#ff7a3a' : '#ffb340', true);
   for (const t of G.traps) dot(t.x, t.z, 2.4, t.armed ? '#c08a4a' : 'rgba(192,138,74,0.35)', true);
   for (const t of G.turrets) if (t.alive) dot(t.pos.x, t.pos.z, 2.5, imp ? '#ff8a6a' : '#9ad0ff', true);
   for (const s of G.rebels) if (s.alive) dot(s.pos.x, s.pos.z, s.special === 'ewok' ? 1.2 : s.special === 'hero' ? 2.2 : 1.6, imp ? foe : friend);
@@ -920,7 +951,7 @@ function clearBattle() {
     G.dyn.remove(ch);
   }
   G.rebels = []; G.imps = []; G.atats = []; G.atsts = []; G.turrets = []; G.speeders = [];
-  G.traps = []; G.charges = []; G.droids = null;
+  G.traps = []; G.charges = []; G.droids = null; G.transport = null; G.dropQueue = [];
   for (const b of G.bolts) boltPool.push(b);
   G.bolts.length = 0; G.grenades.length = 0; FX.clear(); G.time = 0;
 }
@@ -930,6 +961,7 @@ function setupBattle(cfg) {
   G.genMax = G.genHP = 150;
   G.diff = [{ spread: 0.06, rate: 0.75 }, { spread: 0.048, rate: 1 }, { spread: 0.028, rate: 1.3 }][cfg.diff | 0];
   if (MAP.id === 'endor') { setupEndorBattle(cfg); return; }
+  if (MAP.id === 'geonosis') { setupGeonosisBattle(cfg); return; }
   const nR = Math.min(cfg.rebels, MAX_REBELS);
   for (let i = 0; i < nR; i++) {
     let x = -TR.len + 8 + (i + 0.5) / nR * (2 * TR.len - 16) + rand(-2, 2);
@@ -957,7 +989,7 @@ function newGame(opts) {
   const mp = opts && opts.mp;
   const cfg = mp ? Object.assign({}, CFG, opts.cfg) : CFG;
   if (!mp && NET.active) NET.leave();
-  loadMap(cfg.map === 1 ? 'endor' : 'hoth');
+  loadMap(cfg.map | 0);
   setupBattle(cfg);
   G.players = [P];
   P.faction = mp ? opts.faction : (CFG.faction === 1 ? IMP : REB);
@@ -975,8 +1007,10 @@ function newGame(opts) {
   lastPrompt = '#'; lastWeaponKey = '#';
   SFX.init();
   const endor = MAP.id === 'endor';
-  $('genName').textContent = (P.faction === IMP ? 'Ziel: ' : '') + (endor ? 'Bunkertor' : 'Schildgenerator');
-  if (endor) G.msg(P.faction === IMP ? 'Zerstört das Bunkertor! Steig mit E in ein AT-ST oder bring eine Sprengladung am Tor an.'
+  $('genName').textContent = (P.faction === IMP ? 'Ziel: ' : '') + MAP.names.gen;
+  if (MAP.id === 'geonosis') G.msg(P.faction === IMP ? 'Vorwärts, Droiden! Zerstört die Kommandozentrale der Klone. Steig mit E in einen AAT-Panzer.'
+    : 'Die Droidenarmee rückt an! Haltet die Linie – Kanonenboote bringen gefallene Klone als Verstärkung zurück.', 'start');
+  else if (endor) G.msg(P.faction === IMP ? 'Zerstört das Bunkertor! Steig mit E in ein AT-ST oder bring eine Sprengladung am Tor an.'
     : 'Das Imperium greift an! Haltet die Linie vor dem Bunker – die Ewoks kämpfen an eurer Seite!', 'start');
   else G.msg(P.faction === IMP ? 'Zerstört den Schildgenerator! Steig mit E in ein AT-ST oder AT-AT.'
     : 'Das Imperium greift an! Halte den Graben und schütze den Schildgenerator!', 'start');
@@ -986,8 +1020,9 @@ function newGame(opts) {
 
 function startDemo() {
   demo = true; G.players = [P];
-  loadMap(CFG.map === 1 ? 'endor' : 'hoth');
+  loadMap(CFG.map | 0);
   setupBattle(MAP.id === 'endor' ? { rebels: 16, rebLives: 2, troopers: 40, atst: 3, ewoks: 18, bunkerGuns: 2, diff: 1 }
+    : MAP.id === 'geonosis' ? { rebels: 24, rebLives: 2, troopers: 50, atst: 4, aiSpeeders: 2, turrets: 4, diff: 1 }
     : { rebels: 24, rebLives: 2, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
   P.mode = 'spectate'; P.alive = false; P.lives = 0; P.faction = REB; P.walker = null;
 }
@@ -1052,6 +1087,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 const END_TEXT = {
   hoth: { impGen: 'Der Schildgenerator ist zerstört. Echo Base ist gefallen – Sieg für das Imperium!', impWipe: 'Die Verteidiger von Echo Base sind ausgelöscht – Sieg für das Imperium!',
     rebWin: 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!', rebGen: 'Der Schildgenerator wurde zerstört – Echo Base ist gefallen.' },
+  geonosis: { impGen: 'Die Kommandozentrale der Republik ist zerstört – Sieg für die Droidenarmee!', impWipe: 'Die Klonkrieger sind geschlagen – Sieg für die Droidenarmee!',
+    rebWin: 'Die Droidenarmee ist vernichtet! Die Republik hat die Schlacht um Geonosis gewonnen.', rebGen: 'Die Kommandozentrale wurde zerstört – die Republik muss sich zurückziehen.' },
   endor: { impGen: 'Das Bunkertor ist gesprengt. Der Schildgenerator auf Endor bleibt in imperialer Hand – Sieg für das Imperium!',
     impWipe: 'Die Rebellen und ihre Ewok-Verbündeten sind geschlagen – Sieg für das Imperium!',
     rebWin: 'Die imperialen Truppen sind geschlagen! Han Solo kann den Bunker sprengen – der Schild fällt!', rebGen: 'Das Bunkertor wurde gesprengt – die Mission auf Endor ist gescheitert.' },
@@ -1091,6 +1128,7 @@ function simulate(dt) {
   updateBolts(dt);
   updateGrenades(dt);
   if (MAP.id === 'endor') updateEndor(dt);
+  else if (MAP.id === 'geonosis') updateGeonosis(dt);
 }
 // Client: Spiellogik läuft beim Host, hier nur Darstellung + eigenes Fahrzeug
 function clientSimulate(dt) {
@@ -1106,19 +1144,27 @@ function clientSimulate(dt) {
   updateBolts(dt);
   updateGrenades(dt);
   if (MAP.id === 'endor') updateEndor(dt);
+  else if (MAP.id === 'geonosis') updateGeonosis(dt);
 }
 function drawDynamic() {
-  boltRed.begin(); boltGreen.begin();
-  for (const b of G.bolts) (b.f === REB ? boltRed : boltGreen).add(b);
-  boltRed.end(); boltGreen.end();
+  const R = [boltRed, boltGreen, boltBlue, boltSpear];
+  for (const r of R) r.begin();
+  // Laserfarben: Rebellen rot, Imperium grün; auf Geonosis Klone blau, Droiden rot
+  const geo = MAP.id === 'geonosis';
+  for (const b of G.bolts) (b.kind === 7 ? boltSpear : b.f === REB ? (geo ? boltBlue : boltRed) : (geo ? boltRed : boltGreen)).add(b);
+  for (const r of R) r.end();
   rebR.update(G.rebels); impR.update(G.imps);
-  if (MAP.id === 'endor') drawEndor(); else ewokR.update([]);
+  if (MAP.id !== 'hoth') drawEndor(); else ewokR.update([]);
   NET.drawAvatars(lastDt);
 }
 
 function menuCamera(dt, spectate) {
   menuT += dt * 0.05;
-  if (MAP.id === 'endor') {
+  if (MAP.id === 'geonosis') {
+    const x = Math.sin(menuT) * 100;
+    camera.position.set(x, heightAt(x, 45) + 12, 45);
+    camera.lookAt(x * 0.4, 8, -150);
+  } else if (MAP.id === 'endor') {
     const x = Math.sin(menuT * 1.3) * 60;
     camera.position.set(x, heightAt(x, 30) + 5.5, 30);
     camera.lookAt(x * 0.5, 5, -90);

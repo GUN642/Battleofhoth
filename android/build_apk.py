@@ -35,13 +35,13 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 7
-VERSION_NAME = '1.6'
+VERSION_CODE = 8
+VERSION_NAME = '1.7'
 RELEASE_NOTES = [
-    'Neue Karte Endor: Waldmond mit Mammutbäumen, Farnen und Lichtstrahlen – im Menü unter „Karte“ wählbar',
-    'Rebellen verteidigen den Bunkereingang, mit Han Solo, Chewbacca, R2-D2 und C-3PO',
-    'Ewoks kämpfen mit Speeren und lösen Baumstammfallen gegen die AT-STs aus (auch per Hand mit E)',
-    'Bunkergeschütze auf dem Dach, Imperium kann Sprengladungen am Bunkertor anbringen, auch im LAN-Mehrspieler',
+    'Neue Karte Geonosis: Wüste mit Felsnadeln und Tafelbergen, Klonkrieger gegen die Droidenarmee',
+    'Captain Rex und Commander Cody, AAT-Panzer der Droiden (auch selbst steuerbar)',
+    'LAAT-Kanonenboote: selbst fliegen, Klonkrieger absetzen – KI-Kanonenboote fliegen Verstärkung an die Front',
+    'Klone schießen blau, Droiden rot; Ewok-Speere auf Endor jetzt als Speere sichtbar',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

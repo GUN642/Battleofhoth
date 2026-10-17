@@ -229,6 +229,9 @@
         Ewoks kämpfen im Wald mit Speeren. AT-STs rücken über die Waldwege an: Dort hängen <b>Baumstammfallen</b> der Ewoks – sie lösen
         automatisch aus, du kannst sie auch selbst mit E auslösen. Außerdem helfen die zwei <b>Bunkergeschütze</b> auf dem Dach (vom Tor aus mit E bemannen).
         Als Imperialer kannst du am Bunkertor eine <b>Sprengladung</b> anbringen (eine pro Leben).<br>
+        <b>Geonosis:</b> Klonkrieger (Seite Rebellen) mit Captain Rex und Commander Cody verteidigen ihre Kommandozentrale gegen die Droidenarmee (Seite Imperium).
+        AAT-Panzer lassen sich nur mit Geschütztürmen oder <b>Kanonenbooten</b> zerstören. Kanonenboote stehen an der Landezone (E einsteigen) und fliegen
+        gefallene Klone als Verstärkung an die Front. Im eigenen Kanonenboot setzt du wartende Klone mit F / Y / KABEL ab, sobald du tief fliegst.<br>
         <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · 1–4 / Mausrad Waffe wählen · Esc Pause<br>
         <b>Controller:</b> linker Stick bewegen · rechter Stick zielen · ZR/R feuern · ZL/L Visier (X umschalten) · A springen · B benutzen/einsteigen · Y Waffe wechseln bzw. Schleppkabel · Steuerkreuz ◀ ▶ Waffe wählen · Stick drücken sprinten · + Pause. Im Menü: hoch/runter blättern, links/rechts Wert ändern, A bestätigen, B zurück<br>
         <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel · Waffenleiste unten antippen = Waffe wählen<br>
@@ -245,7 +248,7 @@
     <h1 style="font-size:clamp(24px,6vmin,44px)">Mehrspieler</h1>
     <div id="mpStatus" class="mpstatus"></div>
     <div class="set wide"><label>Dein Name</label><input id="mpName" type="text" maxlength="16" autocomplete="off" spellcheck="false"></div>
-    <div class="set wide" id="mpFactionRow"><label>Deine Seite</label><div class="seg" id="mpFaction"><button type="button">Rebellen</button><button type="button">Imperium</button></div></div>
+    <div class="set wide" id="mpFactionRow"><label>Deine Seite</label><div class="seg" id="mpFaction"><button type="button">Rebellen · Klone</button><button type="button">Imperium · Droiden</button></div></div>
     <div id="mpStartView">
       <div class="btns"><button id="mpHost">Spiel eröffnen</button></div>
       <div class="group">Gefundene Spiele</div>
@@ -299,6 +302,7 @@
 <script src="nav.js"></script>
 <script src="net.js"></script>
 <script src="endor.js"></script>
+<script src="geonosis.js"></script>
 <script src="game.js"></script>
 <script src="update.js"></script>
 </body>

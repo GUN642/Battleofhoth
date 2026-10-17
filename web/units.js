@@ -22,7 +22,8 @@ const G = {
   visualOnly: false,      // Client: Spiellogik läuft beim Host, hier nur Darstellung
   creditKill: (pl) => { pl.kills++; },
   onSpecialDown: () => {},  // Held oder Ewok gefallen (Meldung)
-  traps: [], charges: [], netChargeHook: null,
+  reinforce: null,          // Geonosis: gefallene Klone warten auf ein Transportschiff (true = übernommen)
+  traps: [], charges: [], netChargeHook: null, dropQueue: [], transport: null,
   onRemoteDown: () => {}, onRemoteEject: () => {},
 };
 // Seite des lokalen Spielers (Rebellen oder Imperium)
@@ -92,6 +93,7 @@ function updateGrenades(dt) {
 function soldierGeos(f) {
   const H = Math.PI / 2;
   if (MAP.id === 'endor') return f === REB ? endorRebelGeos() : stormtrooperGeos();
+  if (MAP.id === 'geonosis') return f === REB ? cloneGeos() : droidGeos();
   if (f === REB) {
     const coat = 0xcfc3a6, coat2 = 0xb9ad90, pants = 0x8a8170, skin = 0xd9a37c, helm = 0xe8e4da, dark = 0x2a2a2a;
     return {
@@ -248,8 +250,8 @@ function aimPoint(t, out) {
     case 'turret': return out.set(t.pos.x, t.pos.y + t.hy * rand(0.5, 1.15) + (t.roof ? 0.8 : 0), t.pos.z);
     case 'gen': return MAP.id === 'endor' ? out.set(WORLD.gen.x + rand(-9, 9), WORLD.gen.y + rand(1, 5), WORLD.gen.z - 0.5)
       : out.set(WORLD.gen.x + rand(-6, 6), WORLD.gen.y + rand(3, 9), WORLD.gen.z);
-    case 'speeder': return out.copy(t.pos);
-    case 'atst': return out.set(t.pos.x, t.pos.y + 6.8, t.pos.z);
+    case 'speeder': return out.copy(t.hc || t.pos);
+    case 'atst': return out.set(t.pos.x, t.pos.y + t.aimY, t.pos.z);
     case 'atat': return out.set(t.pos.x, t.pos.y + 16, t.pos.z);
   }
   return out.copy(t.pos);
@@ -306,7 +308,7 @@ function updateSoldier(s, dt) {
   if (!s.alive) {
     if (s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
     s.deadT += dt;
-    if (s.livesLeft > 0 && s.deadT > 9) respawnSoldier(s);
+    if (s.livesLeft > 0 && s.deadT > 9 && !s.queued && !(G.reinforce && G.reinforce(s))) respawnSoldier(s);
     return;
   }
   s.thinkCd -= dt;
@@ -315,10 +317,13 @@ function updateSoldier(s, dt) {
   s.moving = false;
   s.stateT -= dt;
   if (s.f === IMP) {
-    if (MAP.id === 'endor') s.holdDist = Math.max(8, s.holdDist - dt * 0.15);   // im Wald rücken sie mit der Zeit immer näher
+    if (MAP.id !== 'hoth') s.holdDist = Math.max(8, s.holdDist - dt * 0.15);   // zwischen Bäumen und Felsen rücken sie mit der Zeit näher
     if (s.state === 'advance') {
       const dx = s.goal.x - s.pos.x, dz = s.goal.z - s.pos.z, d = Math.hypot(dx, dz);
-      if (d < 0.5 || s.stateT <= 0) { s.state = 'hold'; s.stateT = s.target ? rand(2.5, 6) : rand(0.5, 2); }
+      if (d < 0.5 || s.stateT <= 0) {
+        s.stuck = d < 0.5 ? 0 : Math.min(3, (s.stuck | 0) + 1);       // Ziel nicht erreicht: beim nächsten Mal seitlich ausweichen
+        s.state = 'hold'; s.stateT = s.target ? rand(2.5, 6) : rand(0.5, 2);
+      }
       else {
         const spd = 2.4 * dt;
         s.pos.x += dx / d * spd; s.pos.z += dz / d * spd; s.moving = true;
@@ -328,7 +333,8 @@ function updateSoldier(s, dt) {
       const limit = rebelsHoldTrench() ? trenchZ(s.pos.x) - s.holdDist : WORLD.gen.z - 25;
       if (s.pos.z < limit - 1) {
         s.state = 'advance'; s.stateT = rand(3, 7);
-        s.goal.set(clamp(s.pos.x + rand(-8, 8), -TR.len, TR.len), 0, Math.min(limit, s.pos.z + rand(8, 22)));
+        const sx = (s.stuck | 0) * 7;
+        s.goal.set(clamp(s.pos.x + rand(-8 - sx, 8 + sx), -TR.len, TR.len), 0, Math.min(limit, s.pos.z + rand(8, 22)));
       } else s.stateT = rand(2, 4);
     }
   } else {
@@ -404,15 +410,17 @@ function fireBolt(kind, f, from, to, spread, owner, fromNet) {
   if (kind === 7) { SFX.toss(from); return b; }
   FX.muzzle(from, f, kind > 0);
   SFX.shot(from, kind, f);
-  if (kind === 2 || kind === 3) FX.flash(from, f === REB ? 1 : 0.4, f === REB ? 0.35 : 1, 0.25, 4, 0.12);
+  if (kind === 2 || kind === 3) { const c = boltCol(f); FX.flash(from, c[0], c[1], c[2], 4, 0.12); }
   return b;
 }
 
 // Laserbolzen: heller HDR-Kern + additiver Lichtschein (leuchtet mit Bloom)
 class BoltRenderer {
-  constructor(r, g, b, max) {
+  // plain: ohne Leuchtkern und Schein (Ewok-Speere)
+  constructor(r, g, b, max, plain) {
     const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8, 1); geo.rotateX(Math.PI / 2);
-    this.core = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(r * 1.6 + 0.9, g * 1.6 + 0.9, b * 1.6 + 0.9) }), max);
+    this.plain = !!plain;
+    this.core = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: plain ? new THREE.Color().setRGB(r, g, b) : new THREE.Color().setRGB(r * 1.6 + 0.9, g * 1.6 + 0.9, b * 1.6 + 0.9) }), max);
     this.glow = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(r * 0.6, g * 0.6, b * 0.6), transparent: true, opacity: 0.5, depthWrite: false }), max);
     for (const m of [this.core, this.glow]) { m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; }
     this.glow.renderOrder = 7;
@@ -433,7 +441,7 @@ class BoltRenderer {
     _m.compose(_v1, _q, _v2);
     this.glow.setMatrixAt(this.n++, _m);
   }
-  end() { for (const m of [this.core, this.glow]) { m.count = this.n; m.instanceMatrix.needsUpdate = true; } }
+  end() { for (const m of [this.core, this.glow]) { m.count = this.n; m.instanceMatrix.needsUpdate = true; } if (this.plain) this.glow.count = 0; }
 }
 
 // Segment gegen senkrechten Zylinder (Personen, Türme); gibt Parameter t oder -1 zurück
@@ -486,7 +494,7 @@ function updateBolts(dt) {
       }
       for (const sp of G.speeders) {
         if (!sp.alive || sp.mode === 'tow' || sp.mode === 'gone') continue;
-        const t = segSphere(x0, y0, z0, dx, dy, dz, sp.pos, 2.6);
+        const t = segSphere(x0, y0, z0, dx, dy, dz, sp.hc, sp.rad);
         if (t >= 0 && t < bestT) { bestT = t; hitObj = sp; hitType = 'speeder'; }
       }
       if (G.genHP > 0 && b.kind > 0 && b.kind !== 7) {
@@ -528,7 +536,7 @@ function onBoltHit(b, type, obj, p) {
     if (b.kind === 7) return;
     if (K.splash > 0) { FX.explosion(p, K.splash * 0.6); SFX.boom(p, K.splash * 0.5); }
     else if (type === 'ground') { FX.impact(p, b.f); SFX.impact(p); }
-    else FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
+    else { const c = boltCol(b.f); FX.sparks(p, 4, c[0], c[1], c[2]); }
     return;
   }
   switch (type) {
@@ -547,13 +555,15 @@ function onBoltHit(b, type, obj, p) {
   }
   if (b.kind === 7) return;
   if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player' ? obj : null);
-  else if (type !== 'ground') FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
+  else if (type !== 'ground') { const c = boltCol(b.f); FX.sparks(p, 4, c[0], c[1], c[2]); }
 }
 
 function armorMsg(byPlayer) {
   if (!byPlayer) return;
-  G.msg(playerFaction() === REB ? 'Blaster wirkungslos gegen Panzerung! Nutze Geschütztürme oder Schneegleiter.'
-    : 'Blaster wirkungslos gegen Panzerung! Steig in ein AT-ST oder AT-AT.', 'armor');
+  const N = MAP.names;
+  G.msg(playerFaction() === REB ? (MAP.id === 'endor' ? 'Blaster wirkungslos gegen Panzerung! Nutze die Bunkergeschütze oder die Ewok-Fallen.'
+    : `Blaster wirkungslos gegen Panzerung! Nutze Geschütztürme oder ein ${N.flyer}.`.replace('ein Schneegleiter', 'einen Schneegleiter'))
+    : MAP.id === 'hoth' ? 'Blaster wirkungslos gegen Panzerung! Steig in ein AT-ST oder AT-AT.' : `Blaster wirkungslos gegen Panzerung! Steig in einen ${N.walker === 'AAT' ? 'AAT-Panzer' : N.walker}.`, 'armor');
 }
 
 function explode(p, radius, f, owner, hitPlayer) {
@@ -576,7 +586,7 @@ function explode(p, radius, f, owner, hitPlayer) {
 function damageGenerator(d) {
   if (G.genHP <= 0) return;
   G.genHP = Math.max(0, G.genHP - d);
-  G.msg(MAP.id === 'endor' ? 'Das Bunkertor wird angegriffen!' : 'Der Schildgenerator wird beschossen!', 'gen');
+  G.msg(MAP.id === 'endor' ? 'Das Bunkertor wird angegriffen!' : MAP.id === 'geonosis' ? 'Die Kommandozentrale wird beschossen!' : 'Der Schildgenerator wird beschossen!', 'gen');
   if (G.genHP <= 0) genDestroyedFx();
 }
 function genDestroyedFx() {
@@ -824,7 +834,9 @@ function atstGeos() {
 
 class ATST {
   constructor(x, z) {
-    this.type = 'atst'; this.alive = true; this.hp = MAP.id === 'endor' ? 12 : 8;
+    this.type = 'atst'; this.alive = true; this.hp = MAP.id === 'endor' ? 12 : MAP.id === 'geonosis' ? 16 : 8;
+    // Geonosis: statt des AT-ST fährt der Schwebepanzer AAT der Droidenarmee (gleiche KI und Steuerung)
+    this.aat = MAP.id === 'geonosis'; this.label = this.aat ? 'AAT' : 'AT-ST'; this.aimY = this.aat ? 1.9 : 6.8;
     this.pos = new V3(x, heightAt(x, z), z); this.yaw = 0; this.phase = rand(0, TAU);
     this.goal = new V3(x, 0, trenchZ(x) - rand(35, 60)); this.goalT = 0;
     // Endor: jeder AT-ST rückt auf einem Waldweg an
@@ -832,11 +844,23 @@ class ATST {
     if (MAP.id === 'endor') this.goal.set(this.lane, 0, z + 30);
     this.fireCd = rand(2, 4); this.thinkCd = rand(0, 1); this.target = null; this.fallT = 0; this.smokeT = 0; this.fallDir = 1;
     this.pilot = null; this.ctrl = { fwd: 0, yaw: 0, pitch: 0, fire: false, aim: new V3() }; this.gunI = 0;
-    const g = atstGeos();
     this.root = new THREE.Group(); this.root.rotation.order = 'YXZ';
+    this.legs = [];
+    if (this.aat) {
+      const g = aatGeos();
+      this.hull = new THREE.Group(); this.hull.position.y = 0.75; this.hull.add(new THREE.Mesh(g.hull, MAT.vehicle)); this.root.add(this.hull);
+      this.head = new THREE.Group(); this.head.position.set(0, 1.55, -0.6); this.head.add(new THREE.Mesh(g.turret, MAT.vehicle)); this.hull.add(this.head);
+      this.muz = [0, 0.45, 4.6];
+      this.local = [new V3(0, 1.9, 0), new V3(0, 1.4, 2.2)];
+      this.spheres = this.local.map((p, i) => { const s = p.clone(); s.r = i ? 2.2 : 2.6; return s; });
+      G.dyn.add(shadowify(this.root));
+      this.sync();
+      return;
+    }
+    const g = atstGeos();
+    this.muz = [0.35, -0.1, 2.95];
     this.head = new THREE.Group(); this.head.position.set(0, 6.2, 0); this.head.add(new THREE.Mesh(g.head, MAT.vehicle));
     this.root.add(this.head);
-    this.legs = [];
     [0.75, -0.75].forEach((lx, i) => {
       const th = new THREE.Group(); th.position.set(lx, 5.25, 0); th.add(new THREE.Mesh(g.thigh, MAT.vehicle));
       const kn = new THREE.Group(); kn.position.set(0, -2.7, 0); kn.add(new THREE.Mesh(g.shin, MAT.vehicle));
@@ -860,7 +884,7 @@ class ATST {
     if (this.hp <= 0) {
       this.alive = false; this.fallDir = Math.random() < 0.5 ? 1 : -1;
       FX.explosion(this.spheres[0], 4); SFX.boom(this.spheres[0], 2.5);
-      G.msg('AT-ST zerstört!', 'kill');
+      G.msg(this.label + ' zerstört!', 'kill');
       if (isHuman(by)) G.creditKill(by);
       if (this.pilot) G.onPilotDown(this);
     }
@@ -874,6 +898,7 @@ class ATST {
     };
     for (const pl of G.players) if (pl.faction === REB && targetAlive(pl)) test(pl, 0.8);
     for (const t of G.turrets) if (t.alive) test(t, 0.7);
+    if (this.aat) for (const sp of G.speeders) if (targetAlive(sp)) test(sp, 0.8);
     for (const r of G.rebels) if (r.alive && Math.abs(r.pos.x - this.pos.x) < 150 && (r.special !== 'ewok' || r.pos.distanceTo(this.pos) < 55)) test(r, 1);
     // Endor: in Reichweite auch auf das Bunkertor feuern (immer, sobald die Verteidiger gefallen sind)
     if (MAP.id === 'endor' && G.genHP > 0) {
@@ -886,8 +911,8 @@ class ATST {
     if (!this.alive) {
       if (this.fallT < 1) {
         this.fallT = Math.min(1, this.fallT + dt * 0.8);
-        this.root.rotation.z = this.fallDir * this.fallT * this.fallT * 1.45;
-        this.root.position.y = this.pos.y - this.fallT * 1.5;
+        this.root.rotation.z = this.fallDir * this.fallT * this.fallT * (this.aat ? 0.18 : 1.45);
+        this.root.position.y = this.pos.y - this.fallT * (this.aat ? 0.7 : 1.5);
         if (this.fallT >= 1) { FX.explosion(_v1.set(this.pos.x, this.pos.y + 1, this.pos.z), 3); SFX.boom(this.pos, 1.5); }
       }
       this.smokeT -= dt;
@@ -927,13 +952,14 @@ class ATST {
       aimPoint(this.target, _v2);
       if (Math.abs(angDiff(this.yaw, Math.atan2(_v2.x - this.pos.x, _v2.z - this.pos.z))) < 0.25) {
         for (let i = 0; i < 2; i++) {
-          _v1.set(i ? -0.35 : 0.35, -0.1, 2.95).applyMatrix4(this.head.matrixWorld);
+          _v1.set(i ? -this.muz[0] : this.muz[0], this.muz[1], this.muz[2]).applyMatrix4(this.head.matrixWorld);
           fireBolt(1, IMP, _v1, _v2, G.diff.spread * 0.8, this);
         }
       }
     }
   }
   animate(moving) {
+    if (this.aat) { this.hull.position.y = 0.75 + Math.sin(this.phase * 0.7) * 0.06; this.hull.rotation.x = moving ? -0.03 : 0; return; }
     for (const L of this.legs) {
       const s = moving ? Math.sin(this.phase + L.off) : 0, c = moving ? Math.cos(this.phase + L.off) : 0;
       L.th.rotation.x = -0.45 + 0.35 * s;
@@ -980,7 +1006,7 @@ class ATST {
     this.fireCd -= dt;
     if (c.fire && this.fireCd <= 0) {
       this.fireCd = 0.38; this.gunI ^= 1;
-      _v1.set(this.gunI ? -0.35 : 0.35, -0.1, 2.95).applyMatrix4(this.head.matrixWorld);
+      _v1.set(this.gunI ? -this.muz[0] : this.muz[0], this.muz[1], this.muz[2]).applyMatrix4(this.head.matrixWorld);
       fireBolt(1, IMP, _v1, c.aim, 0.003, this.pilot);
     }
   }
@@ -1118,15 +1144,19 @@ function speederGeo() {
 
 class Speeder {
   constructor(mode, x, y, z, yaw) {
-    this.type = 'speeder'; this.alive = true; this.hp = 4; this.mode = mode;
+    // Geonosis: LAAT-Kanonenboot der Republik (größer, langsamer, robuster, transportiert Truppen)
+    this.laat = MAP.id === 'geonosis'; this.label = this.laat ? 'Kanonenboot' : 'Schneegleiter';
+    this.maxHp = this.laat ? 10 : 4; this.rad = this.laat ? 4.6 : 2.6; this.hc = new V3();
+    this.type = 'speeder'; this.alive = true; this.hp = this.maxHp; this.mode = mode;
     this.home = new V3(x, y, z); this.homeYaw = yaw;
     this.pos = new V3(x, y, z); this.vel = new V3(); this.yaw = yaw; this.pitch = 0; this.roll = 0; this.speed = mode === 'parked' ? 0 : 45;
     this.fireCd = 0; this.gun = 0; this.respawnT = 0; this.smokeT = 0;
     this.ai = { target: null, state: 'approach', t: 0, retarget: 0 };
     this.tow = null;
-    this.mesh = new THREE.Mesh(speederGeo(), MAT.vehicle); this.mesh.rotation.order = 'YXZ';
+    if (this.laat) { const g = laatGeos(); this.mesh = new THREE.Mesh(g.body, MAT.vehicle); this.mesh.add(new THREE.Mesh(g.glow, LAAT_GLOW_MAT())); }
+    else { this.mesh = new THREE.Mesh(speederGeo(), MAT.vehicle); this.mesh.add(new THREE.Mesh(SPEEDER_GLOW, MAT.glow)); }
+    this.mesh.rotation.order = 'YXZ';
     this.mesh.castShadow = this.mesh.receiveShadow = true;
-    this.mesh.add(new THREE.Mesh(SPEEDER_GLOW, MAT.glow));
     G.dyn.add(this.mesh);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(8 * 3), 3));
     this.cable = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0x15171a })); this.cable.visible = false; this.cable.frustumCulled = false;
@@ -1139,10 +1169,11 @@ class Speeder {
     this.mesh.rotation.set(-this.pitch, this.yaw, this.roll);
     this.mesh.visible = this.mode !== 'gone';
     this.mesh.updateMatrixWorld(true);
+    this.hc.set(0, this.laat ? 2.4 : 0, 0).applyMatrix4(this.mesh.matrixWorld);
   }
   // Richtung ansteuern (wantYaw/wantPitch im Gleiter-System), mit begrenzter Drehrate
   fly(dt, wantYaw, wantPitch, speedTarget) {
-    const dy = angDiff(this.yaw, wantYaw), turn = 1.5 * dt;
+    const dy = angDiff(this.yaw, wantYaw), turn = (this.laat ? 0.9 : 1.5) * dt;
     const yr = clamp(dy, -turn, turn);
     this.yaw += yr;
     this.pitch += clamp(wantPitch - this.pitch, -turn, turn);
@@ -1163,12 +1194,13 @@ class Speeder {
       for (const s of w.spheres) if (this.pos.distanceTo(s) < s.r + 1.5) { this.damage(99); return; }
       if (w.alive && Math.hypot(this.pos.x - w.pos.x, this.pos.z - w.pos.z) < 8.5 && this.pos.y < w.pos.y + 13) { this.damage(99); return; }
     }
-    for (const w of G.atsts) if (w.alive && this.pos.distanceTo(w.spheres[0]) < 3.5) { this.damage(99); w.damage(99, this.mode === 'player' || this.mode === 'remote' ? this.pilot : null); return; }
+    for (const w of G.atsts) if (w.alive && this.hc.distanceTo(w.spheres[0]) < w.spheres[0].r + this.rad * 0.6) { this.damage(99); w.damage(99, this.mode === 'player' || this.mode === 'remote' ? this.pilot : null); return; }
   }
   fire(dir, owner) {
     if (this.fireCd > 0) return;
-    this.fireCd = 0.16; this.gun ^= 1;
-    _v1.set(this.gun ? 1.95 : -1.95, 0.4, 1.4).applyMatrix4(this.mesh.matrixWorld);
+    this.fireCd = this.laat ? 0.2 : 0.16; this.gun ^= 1;
+    if (this.laat) _v1.set(this.gun ? 2.7 : -2.7, 2.2, 2.6).applyMatrix4(this.mesh.matrixWorld);   // Kugeltürme
+    else _v1.set(this.gun ? 1.95 : -1.95, 0.4, 1.4).applyMatrix4(this.mesh.matrixWorld);
     _v2.copy(_v1).addScaledVector(dir, 200);
     fireBolt(4, REB, _v1, _v2, isHuman(owner) ? 0.002 : 0.02, owner);
   }
@@ -1180,10 +1212,10 @@ class Speeder {
       const wasPlayer = this.mode === 'player', wasRemote = this.mode === 'remote';
       if (isHuman(by)) G.creditKill(by);
       this.mode = 'crash'; this.alive = false;
-      FX.explosion(this.pos, 2.5); SFX.boom(this.pos, 1.5);
-      G.msg(wasPlayer ? 'Dein Schneegleiter wurde abgeschossen!' : 'Ein Schneegleiter wurde abgeschossen!', 'speeder');
+      FX.explosion(this.hc, this.laat ? 4 : 2.5); SFX.boom(this.pos, this.laat ? 2.5 : 1.5);
+      G.msg(wasPlayer ? `Dein ${this.label} wurde abgeschossen!` : `Ein ${this.label} wurde abgeschossen!`, 'speeder');
       if (wasPlayer) G.player.speederDestroyed();
-      if (wasRemote && this.pilot) G.onRemoteDown(this.pilot, 'Schneegleiter abgeschossen');
+      if (wasRemote && this.pilot) G.onRemoteDown(this.pilot, this.label + ' abgeschossen');
     }
   }
   startTow(atat) {
@@ -1236,16 +1268,16 @@ class Speeder {
     const t = A.target;
     if (t) {
       const isAtat = t.type === 'atat' && A.tow, strafeAtat = t.type === 'atat' && !A.tow;
-      const tx = t.pos.x, tz = t.pos.z, ty = t.pos.y + (isAtat ? 6 : strafeAtat ? 17 : t.type === 'atst' ? 6.5 : 1);
+      const tx = t.pos.x, tz = t.pos.z, ty = t.pos.y + (isAtat ? 6 : strafeAtat ? 17 : t.type === 'atst' ? t.aimY - 0.3 : 1);
       const dx = tx - this.pos.x, dz = tz - this.pos.z, dh = Math.hypot(dx, dz);
       if (A.state === 'approach') {
-        const alt = dh > 220 ? Math.max(ty + 25, heightAt(this.pos.x, this.pos.z) + 25) : ty + (isAtat ? 0 : strafeAtat ? 8 : 2);
+        const alt = dh > 220 ? Math.max(ty + 25, heightAt(this.pos.x, this.pos.z) + 25) : ty + (this.laat ? 14 : isAtat ? 0 : strafeAtat ? 8 : 2);
         wantYaw = Math.atan2(dx, dz);
         wantPitch = clamp(Math.atan2(alt - this.pos.y, Math.max(dh, 1)), -0.5, 0.5);
         if (isAtat && dh < 40 && Math.abs(this.pos.y - ty) < 10) { this.startTow(t); return; }
         _v1.set(dx, ty - this.pos.y, dz).normalize();
         if (!isAtat && dh < 230 && this.forward(_v2).dot(_v1) > 0.985) this.fire(_v1, this);
-        if (dh < (isAtat ? 15 : strafeAtat ? 60 : 35)) { A.state = 'extend'; A.t = rand(2.5, 4); }
+        if (dh < (this.laat ? 50 : isAtat ? 15 : strafeAtat ? 60 : 35)) { A.state = 'extend'; A.t = rand(2.5, 4); }
       } else {
         wantPitch = 0.25; A.t -= dt;
         if (A.t <= 0) A.state = 'approach';
@@ -1255,7 +1287,7 @@ class Speeder {
     }
     if (this.pos.y - heightAt(this.pos.x, this.pos.z) < 10) wantPitch = Math.max(wantPitch, 0.25);
     if (Math.abs(this.pos.x) > 420 || this.pos.z < -820 || this.pos.z > 260) wantYaw = Math.atan2(-this.pos.x, -150 - this.pos.z);
-    this.fly(dt, wantYaw, wantPitch, 48);
+    this.fly(dt, wantYaw, wantPitch, this.laat ? 34 : 48);
   }
   // Pose aus dem Netz, mit Vorausberechnung über die Geschwindigkeit
   updateNet(dt) {
@@ -1294,7 +1326,7 @@ class Speeder {
         this.pitch = Math.max(-0.9, this.pitch - dt); this.roll += dt * 3;
         this.smokeT -= dt; if (this.smokeT <= 0) { this.smokeT = 0.05; FX.smokeColumn(this.pos, 0.5); }
         if (this.pos.y <= heightAt(this.pos.x, this.pos.z) + 0.5) {
-          FX.explosion(this.pos, 3); SFX.boom(this.pos, 2);
+          FX.explosion(this.pos, this.laat ? 5 : 3); SFX.boom(this.pos, 2);
           this.mode = 'gone'; this.respawnT = 25;
         }
         this.sync();
@@ -1303,13 +1335,13 @@ class Speeder {
       case 'gone':
         if (this.home && this.isPad) {
           this.respawnT -= dt;
-          if (this.respawnT <= 0) { this.reset(); G.msg('Ein neuer Schneegleiter steht auf der Landeplattform bereit.', 'pad'); }
+          if (this.respawnT <= 0) { this.reset(); G.msg(this.laat ? 'Ein neues Kanonenboot steht an der Landezone bereit.' : 'Ein neuer Schneegleiter steht auf der Landeplattform bereit.', 'pad'); }
         }
         break;
     }
   }
   reset() {
-    this.alive = true; this.hp = 4; this.mode = 'parked'; this.pos.copy(this.home); this.yaw = this.homeYaw;
+    this.alive = true; this.hp = this.maxHp; this.mode = 'parked'; this.pos.copy(this.home); this.yaw = this.homeYaw;
     this.pitch = 0; this.roll = 0; this.speed = 0; this.vel.set(0, 0, 0); this.sync();
   }
 }

@@ -79,7 +79,7 @@ function testTransport() {
 const PMODES = ['foot', 'turret', 'speeder', 'walker', 'dead', 'spectate'];
 const SPMODES = ['parked', 'ai', 'player', 'remote', 'tow', 'crash', 'gone'];
 const BATTLE_KEYS = ['map', 'rebels', 'rebLives', 'ewoks', 'troopers', 'atst', 'atat', 'aiSpeeders', 'turrets', 'bunkerGuns', 'lives', 'diff'];
-const GLOBAL_MSG = new Set(['kill', 'turret', 'gen', 'tow', 'pad', 'trap', 'sap', 'herohan', 'herochewie']);
+const GLOBAL_MSG = new Set(['kill', 'turret', 'gen', 'tow', 'pad', 'trap', 'sap', 'herohan', 'herochewie', 'herorex', 'herocody', 'tp', 'drop']);
 
 function nameSprite(name, f) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
@@ -210,7 +210,7 @@ NET.renderLobby = function () {
   for (const p of NET.lobby) {
     const d = document.createElement('div'); d.className = 'mpplayer ' + (p.f === IMP ? 'imp' : 'reb');
     d.innerHTML = `<span></span><b></b><i></i>`;
-    d.children[0].textContent = p.f === IMP ? 'Imperium' : 'Rebellen';
+    d.children[0].textContent = p.f === IMP ? 'Imperium · Droiden' : 'Rebellen · Klone';
     d.children[1].textContent = p.n + (p.id === NET.myId ? ' (du)' : '');
     d.children[2].textContent = p.id === 0 ? 'Host' : '';
     box.append(d);
@@ -338,9 +338,10 @@ NET.checkEnd = function (dt) {
 };
 NET.finish = function (w) {
   const win = w === P.faction;
-  const endor = MAP.id === 'endor';
-  endGame(win, w === REB ? (endor ? 'Die Rebellen haben den Bunkereingang auf Endor gehalten!' : 'Die Rebellen haben Echo Base verteidigt!')
-    : (endor ? 'Das Imperium hat den Bunker auf Endor gestürmt!' : 'Das Imperium hat Echo Base erobert!'));
+  const txt = { hoth: ['Die Rebellen haben Echo Base verteidigt!', 'Das Imperium hat Echo Base erobert!'],
+    endor: ['Die Rebellen haben den Bunkereingang auf Endor gehalten!', 'Das Imperium hat den Bunker auf Endor gestürmt!'],
+    geonosis: ['Die Klonkrieger haben die Droidenarmee auf Geonosis geschlagen!', 'Die Droidenarmee hat die Kommandozentrale der Republik zerstört!'] }[MAP.id];
+  endGame(win, txt[w === REB ? 0 : 1]);
   NET.inGame = false;
   if (NET.mode === 'host') NET.tr.info(NET.beaconInfo());
   $('againBtn').classList.toggle('hidden', NET.mode !== 'host');
@@ -362,7 +363,9 @@ NET.snapshot = function () {
       s.tow ? G.atats.indexOf(s.tow.atat) : -1);
   }
   for (const p of G.players) pl.push(pid(p), p === P ? NET.name : p.name, p.faction, R2(p.pos.x), R2(p.pos.y), R2(p.pos.z), R2(p.yaw), R2(p.pitch), PMODES.indexOf(p.mode), p.alive ? 1 : 0, p.kills, p.lives);
-  return { t: 's', gen: R2(G.genHP), r: sol(G.rebels), i: sol(G.imps), a, st, tu, sp, pl, tr: G.traps.map(t => t.state) };
+  const T = G.transport;
+  return { t: 's', gen: R2(G.genHP), r: sol(G.rebels), i: sol(G.imps), a, st, tu, sp, pl, tr: G.traps.map(t => t.state),
+    tp: T ? [R2(T.pos.x), R2(T.pos.y), R2(T.pos.z), R2(T.yaw), R2(T.pitch)] : 0, dq: G.dropQueue.length };
 };
 
 NET.hostTick = function (dt) {
@@ -470,6 +473,14 @@ NET.onHostMsg = function (id, m) {
       if (av && NET.inGame && t && av.faction === REB) t.trigger(av);
       break;
     }
+    case 'drop': {
+      const sp = G.speeders.find(v => v.pilot === av && v.mode === 'remote');
+      if (av && NET.inGame && sp && isFinite(m.x) && isFinite(m.z) && Math.hypot(sp.pos.x - m.x, sp.pos.z - m.z) < 30) {
+        const n = dropTroops(new THREE.Vector3(m.x, 0, m.z), 6);
+        if (n) G.msg(`${av.name} hat ${n} Klonkrieger abgesetzt!`, 'drop');
+      }
+      break;
+    }
     case 'charge':
       if (av && NET.inGame && av.faction === IMP && G.genHP > 0) plantCharge(av);
       break;
@@ -527,6 +538,12 @@ NET.applySnapshot = function (m) {
   const quiet = NET.firstSnap;      // beim späten Beitritt keine Explosionen für längst Zerstörtes
   NET.firstSnap = false;
   if (G.genHP > 0 && m.gen <= 0 && !quiet) genDestroyedFx();
+  // Geonosis: Transportschiff nur als Bild, wartende Verstärkung für das eigene Kanonenboot
+  NET.dq = m.dq | 0;
+  if (m.tp && MAP.id === 'geonosis') {
+    if (!G.transport) { G.transport = new NetTransport(); }
+    G.transport.net(m.tp);
+  } else if (G.transport) { G.transport.remove(); G.transport = null; }
   // Ewok-Fallen: Host löst aus, Clients spielen die Bewegung ab
   if (m.tr) G.traps.forEach((t, i) => {
     const st = m.tr[i];
