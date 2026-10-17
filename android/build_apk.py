@@ -35,14 +35,13 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 3
-VERSION_NAME = '1.2'
+VERSION_CODE = 4
+VERSION_NAME = '1.3'
 RELEASE_NOTES = [
-    'Imperium spielbar: als Schneetruppler kämpfen oder AT-ST und AT-AT selbst steuern',
-    'Visier/Zoom für alle Waffen (Zielfernrohr zu Fuß, Nahsicht in Türmen und Läufern)',
-    'KI-Rebellen haben 3 Leben (im Menü einstellbar) und kehren in den Graben zurück',
-    'Seitenwahl und Auswahlschalter im Menü, Reserve-Anzeige im HUD',
-    'Ausbalanciert: stärkere AT-AT-Panzerung, Schneegleiter-KI nutzt das Schleppkabel seltener',
+    'Android TV & Controller: Menü mit Steuerkreuz/Stick bedienbar (hoch/runter blättern, links/rechts ändern)',
+    'Volle Controller-Steuerung im Spiel (Sticks, Trigger, Tasten), z. B. Nintendo-Switch-Controller',
+    'Schieberegler halten den Fokus nicht mehr fest',
+    'App erscheint auf dem Android-TV-Startbildschirm (Banner) und startet beim Verbinden eines Controllers nicht neu',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus
@@ -95,7 +94,8 @@ ATTR_IDS = {
     'theme': 0x01010000, 'label': 0x01010001, 'icon': 0x01010002, 'name': 0x01010003,
     'exported': 0x01010010, 'screenOrientation': 0x0101001e, 'configChanges': 0x0101001f,
     'minSdkVersion': 0x0101020c, 'versionCode': 0x0101021b, 'versionName': 0x0101021c,
-    'targetSdkVersion': 0x01010270, 'allowBackup': 0x01010280, 'hardwareAccelerated': 0x010102d3,
+    'targetSdkVersion': 0x01010270, 'allowBackup': 0x01010280, 'required': 0x0101028e,
+    'hardwareAccelerated': 0x010102d3, 'banner': 0x010103f2, 'isGame': 0x010103f4,
 }
 ANDROID_NS = 'http://schemas.android.com/apk/res/android'
 T_REF, T_STRING, T_INT_DEC, T_INT_HEX, T_BOOL = 0x01, 0x03, 0x10, 0x11, 0x12
@@ -124,16 +124,24 @@ def build_manifest():
         ('uses-sdk', [(A, 'minSdkVersion', T_INT_DEC, MIN_SDK), (A, 'targetSdkVersion', T_INT_DEC, TARGET_SDK)], []),
         ('uses-permission', [(A, 'name', T_STRING, 'android.permission.INTERNET')], []),
         ('uses-permission', [(A, 'name', T_STRING, 'android.permission.REQUEST_INSTALL_PACKAGES')], []),
+        # Android TV: kein Touchscreen nötig, Leanback (TV-Startbildschirm) optional
+        ('uses-feature', [(A, 'name', T_STRING, 'android.hardware.touchscreen'), (A, 'required', T_BOOL, False)], []),
+        ('uses-feature', [(A, 'name', T_STRING, 'android.software.leanback'), (A, 'required', T_BOOL, False)], []),
+        ('uses-feature', [(A, 'name', T_STRING, 'android.hardware.gamepad'), (A, 'required', T_BOOL, False)], []),
         ('application', [(A, 'label', T_STRING, APP_LABEL), (A, 'icon', T_REF, 0x7f010000),
+                         (A, 'banner', T_REF, 0x7f010001), (A, 'isGame', T_BOOL, True),
                          (A, 'allowBackup', T_BOOL, True), (A, 'hardwareAccelerated', T_BOOL, True)], [
             ('activity', [(A, 'theme', T_REF, 0x01030007),  # @android:style/Theme.NoTitleBar.Fullscreen
                           (A, 'name', T_STRING, PACKAGE + '.MainActivity'),
                           (A, 'exported', T_BOOL, True),
                           (A, 'screenOrientation', T_INT_DEC, 6),     # sensorLandscape
-                          (A, 'configChanges', T_INT_HEX, 0x0db0)],   # orientation|screenSize|keyboard...
+                          # orientation|screenSize|keyboard|keyboardHidden|navigation|...: kein Neustart,
+                          # wenn z.B. ein Controller verbunden wird
+                          (A, 'configChanges', T_INT_HEX, 0x0df0)],
              [('intent-filter', [], [
                  ('action', [(A, 'name', T_STRING, 'android.intent.action.MAIN')], []),
                  ('category', [(A, 'name', T_STRING, 'android.intent.category.LAUNCHER')], []),
+                 ('category', [(A, 'name', T_STRING, 'android.intent.category.LEANBACK_LAUNCHER')], []),
              ])]),
         ]),
     ])
@@ -205,17 +213,20 @@ def build_manifest():
 
 
 # --------------------------------------------------------------------------- resources.arsc
-def build_arsc(icon_path):
-    gpool = string_pool([icon_path])
+def build_arsc(drawables):
+    """drawables: Liste (Name, Pfad im APK); IDs 0x7f010000, 0x7f010001, ..."""
+    n = len(drawables)
+    gpool = string_pool([p for _, p in drawables])
     type_pool = string_pool(['drawable'])
-    key_pool = string_pool(['icon'])
-    type_spec = struct.pack('<HHIBBHI', 0x0202, 16, 16 + 4, 1, 0, 0, 1) + struct.pack('<I', 0)
+    key_pool = string_pool([k for k, _ in drawables])
+    type_spec = struct.pack('<HHIBBHI', 0x0202, 16, 16 + 4 * n, 1, 0, 0, n) + struct.pack('<I', 0) * n
     config = struct.pack('<I', 64) + b'\x00' * 60
-    entries = struct.pack('<HHI', 8, 0, 0) + struct.pack('<HBBI', 8, 0, T_STRING, 0)
+    entries = b''.join(struct.pack('<HHI', 8, 0, i) + struct.pack('<HBBI', 8, 0, T_STRING, i) for i in range(n))
+    offsets = b''.join(struct.pack('<I', i * 16) for i in range(n))
     type_hdr = 20 + len(config)
-    type_chunk_body = config + struct.pack('<I', 0) + entries
-    type_chunk = struct.pack('<HHIBBHII', 0x0201, type_hdr, 20 + len(type_chunk_body), 1, 0, 0, 1,
-                             type_hdr + 4) + type_chunk_body
+    type_chunk_body = config + offsets + entries
+    type_chunk = struct.pack('<HHIBBHII', 0x0201, type_hdr, 20 + len(type_chunk_body), 1, 0, 0, n,
+                             type_hdr + 4 * n) + type_chunk_body
     name = PACKAGE.encode('utf-16-le').ljust(256, b'\x00')
     pkg_hdr = 288
     pkg_body = type_pool + key_pool + type_spec + type_chunk
@@ -223,6 +234,36 @@ def build_arsc(icon_path):
         '<IIIII', pkg_hdr, 1, pkg_hdr + len(type_pool), 1, 0) + pkg_body
     body = gpool + pkg
     return struct.pack('<HHII', 0x0002, 12, 12 + len(body), 1) + body
+
+
+# --------------------------------------------------------------------------- Banner für Android TV (320x180)
+def make_banner(path):
+    from PIL import Image, ImageDraw, ImageFont
+    W, H = 320, 180
+    img = Image.new('RGB', (W, H))
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / H
+        d.line([(0, y), (W, y)], fill=(int(40 + 120 * t), int(70 + 110 * t), int(120 + 100 * t)))
+    d.polygon([(0, 130), (90, 112), (180, 126), (320, 104), (320, 180), (0, 180)], fill=(232, 238, 246))
+    g = (70, 76, 86)
+    d.rectangle([196, 70, 262, 96], fill=g); d.rectangle([262, 76, 272, 88], fill=g); d.rectangle([270, 72, 292, 92], fill=g)
+    for x in (200, 214, 240, 252):
+        d.rectangle([x, 94, x + 7, 142], fill=g); d.rectangle([x - 2, 140, x + 9, 146], fill=(55, 60, 68))
+    d.line([(10, 36), (110, 56)], fill=(255, 70, 40), width=3)
+    d.line([(210, 30), (300, 48)], fill=(90, 255, 70), width=3)
+    try:
+        f = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 30)
+        f2 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 13)
+    except Exception:
+        f = f2 = ImageFont.load_default()
+    for dx, dy in ((2, 2),):
+        d.text((16 + dx, 64 + dy), 'BATTLE', font=f, fill=(0, 0, 0))
+        d.text((16 + dx, 96 + dy), 'OF HOTH', font=f, fill=(0, 0, 0))
+    d.text((16, 64), 'BATTLE', font=f, fill=(255, 214, 110))
+    d.text((16, 96), 'OF HOTH', font=f, fill=(255, 214, 110))
+    d.text((18, 136), 'ECHO BASE', font=f2, fill=(40, 50, 70))
+    img.save(path)
 
 
 # --------------------------------------------------------------------------- Icon
@@ -306,11 +347,15 @@ def main():
     icon_arc = 'res/drawable/icon.png'
     icon_file = os.path.join(BUILD, 'icon.png')
     make_icon(icon_file)
+    banner_arc = 'res/drawable/banner.png'
+    banner_file = os.path.join(BUILD, 'banner.png')
+    make_banner(banner_file)
     files = [
         ('AndroidManifest.xml', build_manifest(), False),
         ('classes.dex', open(os.path.join(BUILD, 'classes.dex'), 'rb').read(), False),
-        ('resources.arsc', build_arsc(icon_arc), True),
+        ('resources.arsc', build_arsc([('icon', icon_arc), ('banner', banner_arc)]), True),
         (icon_arc, open(icon_file, 'rb').read(), True),
+        (banner_arc, open(banner_file, 'rb').read(), True),
     ]
     for fn in sorted(os.listdir(WEB)):
         p = os.path.join(WEB, fn)

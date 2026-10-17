@@ -1,12 +1,11 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
+  "versionCode": 4,
+  "versionName": "1.3",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Imperium spielbar: als Schneetruppler kämpfen oder AT-ST und AT-AT selbst steuern",
-    "Visier/Zoom für alle Waffen (Zielfernrohr zu Fuß, Nahsicht in Türmen und Läufern)",
-    "KI-Rebellen haben 3 Leben (im Menü einstellbar) und kehren in den Graben zurück",
-    "Seitenwahl und Auswahlschalter im Menü, Reserve-Anzeige im HUD",
-    "Ausbalanciert: stärkere AT-AT-Panzerung, Schneegleiter-KI nutzt das Schleppkabel seltener"
+    "Android TV & Controller: Menü mit Steuerkreuz/Stick bedienbar (hoch/runter blättern, links/rechts ändern)",
+    "Volle Controller-Steuerung im Spiel (Sticks, Trigger, Tasten), z. B. Nintendo-Switch-Controller",
+    "Schieberegler halten den Fokus nicht mehr fest",
+    "App erscheint auf dem Android-TV-Startbildschirm (Banner) und startet beim Verbinden eines Controllers nicht neu"
   ]
 }

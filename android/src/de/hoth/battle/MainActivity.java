@@ -9,9 +9,13 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -23,8 +27,10 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Locale;
 
 /** Vollbild-WebView, die das Spiel aus den App-Assets lädt, plus automatische Update-Prüfung. */
 public class MainActivity extends Activity {
@@ -47,6 +53,8 @@ public class MainActivity extends Activity {
     private volatile String updateJson;
     private volatile String updateApk;
     private long downloadId = -1;
+    private Method evalJs;
+    private String lastAxes = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +78,9 @@ public class MainActivity extends Activity {
             }
         });
         web.setBackgroundColor(0xFF9FB4CC);
+        web.setFocusable(true);
+        web.setFocusableInTouchMode(true);
+        try { evalJs = WebView.class.getMethod("evaluateJavascript", String.class, ValueCallback.class); } catch (Exception e) { evalJs = null; }
         web.addJavascriptInterface(new Bridge(), "HothApp");
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
@@ -144,8 +155,62 @@ public class MainActivity extends Activity {
 
     private void js(final String code) {
         runOnUiThread(new Runnable() {
-            public void run() { if (web != null) web.loadUrl("javascript:" + code); }
+            public void run() { evaluate(code, null); }
         });
+    }
+
+    /** JavaScript ausführen (evaluateJavascript ab Android 4.4, sonst javascript:-URL). Nur im UI-Thread. */
+    private void evaluate(String code, ValueCallback<String> cb) {
+        if (web == null) return;
+        if (evalJs != null) {
+            try { evalJs.invoke(web, code, cb); return; } catch (Exception e) { evalJs = null; }
+        }
+        web.loadUrl("javascript:" + code);
+        if (cb != null) cb.onReceiveValue("true");
+    }
+
+    // ------------------------------------------------------------------ Controller (Gamepad)
+    private static boolean isPad(InputDevice d, int source) {
+        int s = source | (d != null ? d.getSources() : 0);
+        return (s & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                || (s & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+    }
+
+    /** Controller-Tasten direkt ans Spiel weiterreichen (die WebView würde sie sonst als Fokus-Navigation verbrauchen). */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        int kc = e.getKeyCode();
+        boolean padKey = KeyEvent.isGamepadButton(kc)
+                || (isPad(e.getDevice(), e.getSource()) && kc >= KeyEvent.KEYCODE_DPAD_UP && kc <= KeyEvent.KEYCODE_DPAD_CENTER);
+        if (padKey && kc != KeyEvent.KEYCODE_BACK) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) evaluate("window.hothPadKey&&hothPadKey(" + kc + ",1)", null);
+            else if (e.getAction() == KeyEvent.ACTION_UP) evaluate("window.hothPadKey&&hothPadKey(" + kc + ",0)", null);
+            return true;
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    private static float axis(MotionEvent e, int a) {
+        float v = e.getAxisValue(a);
+        return Math.abs(v) < 0.04f ? 0f : v;
+    }
+
+    /** Analoge Sticks, Trigger und Steuerkreuz (Hat) weiterreichen. */
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if ((e.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK && e.getAction() == MotionEvent.ACTION_MOVE) {
+            float lx = axis(e, MotionEvent.AXIS_X), ly = axis(e, MotionEvent.AXIS_Y);
+            float rx = axis(e, MotionEvent.AXIS_Z), ry = axis(e, MotionEvent.AXIS_RZ);
+            float rx2 = axis(e, MotionEvent.AXIS_RX), ry2 = axis(e, MotionEvent.AXIS_RY);
+            if (Math.abs(rx2) + Math.abs(ry2) > Math.abs(rx) + Math.abs(ry)) { rx = rx2; ry = ry2; }
+            float lt = Math.max(axis(e, MotionEvent.AXIS_LTRIGGER), axis(e, MotionEvent.AXIS_BRAKE));
+            float rt = Math.max(axis(e, MotionEvent.AXIS_RTRIGGER), axis(e, MotionEvent.AXIS_GAS));
+            float hx = axis(e, MotionEvent.AXIS_HAT_X), hy = axis(e, MotionEvent.AXIS_HAT_Y);
+            String s = String.format(Locale.US, "window.hothPadAxes&&hothPadAxes(%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.0f,%.0f)", lx, ly, rx, ry, lt, rt, hx, hy);
+            if (!s.equals(lastAxes)) { lastAxes = s; evaluate(s, null); }
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(e);
     }
 
     private File apkFile() {
@@ -247,7 +312,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (web != null) {
-            web.loadUrl("javascript:window.hothPause&&hothPause()");
+            evaluate("window.hothPause&&hothPause()", null);
             web.onPause();
             web.pauseTimers();
         }
@@ -265,12 +330,18 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // Im Hauptmenü beendet "Zurück" die App, sonst pausiert es das Spiel.
-        if (web == null || "Hoth-Menu".equals(web.getTitle())) {
-            super.onBackPressed();
-        } else {
-            web.loadUrl("javascript:window.hothBack&&hothBack()");
+        // Das Spiel entscheidet: Pause, Dialog schließen ... Nur im Hauptmenü beendet "Zurück" die App.
+        if (web == null) { super.onBackPressed(); return; }
+        if (evalJs == null) {
+            if ("Hoth-Menu".equals(web.getTitle())) super.onBackPressed();
+            else web.loadUrl("javascript:window.hothBack&&hothBack()");
+            return;
         }
+        evaluate("window.hothBack?hothBack():false", new ValueCallback<String>() {
+            public void onReceiveValue(String handled) {
+                if (!"true".equals(handled)) finish();
+            }
+        });
     }
 
     @Override

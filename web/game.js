@@ -38,7 +38,7 @@ function buildSettingsUI() {
       const seg = document.createElement('div'); seg.className = 'seg';
       CFG[s.key] = clamp(+CFG[s.key] | 0, s.min, s.max);
       s.names.forEach((n, i) => {
-        const b = document.createElement('button'); b.type = 'button'; b.textContent = n;
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.tabIndex = -1;
         b.classList.toggle('on', CFG[s.key] === i);
         b.addEventListener('click', () => {
           CFG[s.key] = i; saveCfg();
@@ -47,6 +47,13 @@ function buildSettingsUI() {
         });
         seg.append(b);
       });
+      // Controller/Fernbedienung: links/rechts wechselt die Auswahl, OK schaltet weiter
+      div._step = (d, wrap) => {
+        let i = (CFG[s.key] | 0) + d;
+        if (wrap) i = (i - s.min + (s.max - s.min + 1)) % (s.max - s.min + 1) + s.min;
+        i = clamp(i, s.min, s.max);
+        if (i !== CFG[s.key]) seg.children[i - s.min].click();
+      };
       div.append(lab, seg); root.append(div);
       continue;
     }
@@ -61,6 +68,14 @@ function buildSettingsUI() {
       inp.style.setProperty('--p', ((CFG[s.key] - s.min) / (s.max - s.min) * 100).toFixed(1) + '%');
     };
     inp.addEventListener('input', () => { show(); saveCfg(); if (s.key === 'gfx') applyGfx(); });
+    // Regler dürfen keinen Tastatur-Fokus bekommen (sonst "fangen" sie die Pfeiltasten)
+    inp.tabIndex = -1;
+    inp.addEventListener('focus', () => inp.blur());
+    div._step = (d, wrap) => {
+      if (wrap) return;
+      const v = clamp(+inp.value + d, s.min, s.max);
+      if (v !== +inp.value) { inp.value = v; inp.dispatchEvent(new Event('input')); }
+    };
     show();
     div.append(lab, inp); root.append(div);
   }
@@ -426,7 +441,7 @@ const BASE_FOV = 72;
 function updateZoom(dt) {
   const can = P.mode === 'foot' || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder';
   if (!can) input.zoomToggle = false;
-  const want = can && (input.zoomHeld || input.zoomToggle);
+  const want = can && (input.zoomHeld || input.zoomToggle || PAD.zoom());
   zoomT = clamp(zoomT + (want ? dt * 7 : -dt * 7), 0, 1);
   const zf = P.mode === 'foot' ? 28 : P.mode === 'speeder' ? 52 : 22;
   const fov = lerp(BASE_FOV, zf, smooth(0, 1, zoomT));
@@ -440,13 +455,19 @@ function updateZoom(dt) {
 function updatePlayer(dt) {
   updateZoom(dt);
   const sens = 0.00045 * CFG.sens * (IS_TOUCH ? 1.2 : 1) * (camera.fov / BASE_FOV);
+  // Controller: rechter Stick = Blick (wie Mausbewegung in Pixeln pro Sekunde)
+  const pa = PAD.axes();
+  input.lookDX += pa.rx * dt * 1150; input.lookDY += pa.ry * dt * 800;
   const lookX = input.lookDX * sens, lookY = input.lookDY * sens;
   input.lookDX = input.lookDY = 0;
   const k = input.keys;
-  const fwdIn = clamp((k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + input.joyY, -1, 1);
-  const strIn = clamp((k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0) + input.joyX, -1, 1);
-  const firing = input.mouseFire || input.touchFire;
-  const use = input.use, jump = input.jump, harpoon = input.harpoon;
+  const fwdIn = clamp((k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + input.joyY - pa.ly, -1, 1);
+  const strIn = clamp((k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0) + input.joyX + pa.lx, -1, 1);
+  const firing = input.mouseFire || input.touchFire || PAD.fire();
+  // Controller-Tasten: A springen, B benutzen/einsteigen, Y Schleppkabel, X Visier umschalten, Start/Select Pause
+  if (PAD.take('x')) input.zoomToggle = !input.zoomToggle;
+  if (PAD.take('start') || PAD.take('select')) { pause(); return; }
+  const use = input.use || PAD.take('b'), jump = input.jump || PAD.take('a'), harpoon = input.harpoon || PAD.take('y');
   input.use = input.jump = input.harpoon = false;
   P.god = Math.max(0, P.god - dt);
   P.fireCd -= dt;
@@ -470,7 +491,7 @@ function updatePlayer(dt) {
 
   if (P.mode === 'foot') {
     P.yaw -= lookX; P.pitch = clamp(P.pitch - lookY, -1.45, 1.45);
-    const sprint = k.ShiftLeft || k.ShiftRight || Math.hypot(input.joyX, input.joyY) > 0.95;
+    const sprint = k.ShiftLeft || k.ShiftRight || Math.hypot(input.joyX, input.joyY) > 0.95 || PAD.sprint();
     const spd = (sprint ? 7.2 : 4.6) * (P.onGround ? 1 : 0.8);
     const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
     let mx = -sy * fwdIn + cy * strIn, mz = -cy * fwdIn - sy * strIn;
@@ -632,7 +653,11 @@ function setPrompt(list) {
   if (s === lastPrompt) return;
   lastPrompt = s;
   const el = $('prompt'); el.innerHTML = '';
-  for (const p of list) { const sp = document.createElement('span'); sp.textContent = IS_TOUCH ? p.replace('[E]', 'E:').replace('[F]', 'KABEL:') : p; el.append(sp); }
+  for (const p of list) {
+    const sp = document.createElement('span');
+    sp.textContent = PAD.connected ? p.replace('[E]', 'Ⓑ').replace('[F]', 'Ⓨ') : IS_TOUCH ? p.replace('[E]', 'E:').replace('[F]', 'KABEL:') : p;
+    el.append(sp);
+  }
 }
 
 // ---------------------------------------------------------------- HUD
@@ -793,10 +818,13 @@ function endGame(win, reason) {
     `<div><span>Schildgenerator</span><b>${Math.round(100 * G.genHP / G.genMax)}%</b></div><div><span>Dauer</span><b>${m}:${String(s).padStart(2, '0')}</b></div></div>`;
 }
 window.hothPause = () => pause();
+// Zurück-Taste (Android): true = vom Spiel verarbeitet, false = App darf sich schließen
 window.hothBack = () => {
-  if (state === 'playing') pause();
-  else if (state === 'paused') resume();
-  else if (state === 'over') showMenu();
+  if (!$('updModal').classList.contains('hidden')) { $('updLater').click(); return true; }
+  if (state === 'playing') { pause(); return true; }
+  if (state === 'paused') { resume(); return true; }
+  if (state === 'over') { showMenu(); return true; }
+  return false;
 };
 
 $('startBtn').addEventListener('click', () => { SFX.init(); newGame(); });

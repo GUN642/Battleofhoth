@@ -106,6 +106,12 @@
   input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255, 181, 71, 0.55); }
   .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .set.wide { grid-column: 1 / -1; }
+  /* Fokus-Rahmen für Controller / Fernbedienung */
+  .set { border-radius: 10px; padding: 2px 6px; margin: 0 -6px; transition: background 0.12s, box-shadow 0.12s; }
+  .kbnav .navfocus { outline: none; box-shadow: 0 0 0 2px var(--acc), 0 0 18px rgba(255, 181, 71, 0.45); }
+  .kbnav .set.navfocus { background: rgba(255, 181, 71, 0.1); }
+  .kbnav summary.navfocus { border-radius: 6px; padding: 2px 4px; }
+  .kbnav button.navfocus { transform: scale(1.04); }
   .set > label { margin-bottom: 4px; }
   .seg { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); margin-bottom: 6px; }
   .seg button { flex: 1; padding: 7px 6px; border-radius: 8px; font-size: clamp(10px, 2vmin, 13px); letter-spacing: 0.08em; background: transparent; color: #cfd8e6; box-shadow: none; font-weight: 700; }
@@ -188,6 +194,7 @@
         <b>Imperium:</b> Als Schneetruppler kannst du an einem AT-ST oder AT-AT mit E einsteigen und ihn steuern
         (vor/zurück laufen, mit dem Blick drehen und zielen). Ziel: den Schildgenerator zerstören.<br>
         <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · Esc Pause<br>
+        <b>Controller:</b> linker Stick bewegen · rechter Stick zielen · ZR/R feuern · ZL/L Visier (X umschalten) · A springen · B benutzen/einsteigen · Y Schleppkabel · Stick drücken sprinten · + Pause. Im Menü: hoch/runter blättern, links/rechts Wert ändern, A bestätigen, B zurück<br>
         <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel
       </details>
     </div>
@@ -228,6 +235,7 @@
 <script src="audio.js"></script>
 <script src="units.js"></script>
 <script src="post.js"></script>
+<script src="nav.js"></script>
 <script src="game.js"></script>
 <script src="update.js"></script>
 </body>

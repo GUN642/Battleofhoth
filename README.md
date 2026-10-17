@@ -71,6 +71,28 @@ KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlich
 | Schub im Gleiter | Joystick vor/zurück | W/S |
 | Pause | II oder Zurück-Taste | Esc |
 
+### Controller & Android TV
+Das Spiel läuft auch auf Android TV und lässt sich komplett mit einem Controller spielen (z. B. Nintendo-Switch-,
+Xbox- oder PlayStation-Controller per Bluetooth). Es erscheint mit Banner auf dem TV-Startbildschirm.
+
+| Aktion | Controller |
+|---|---|
+| Bewegen / Läufer laufen lassen | linker Stick |
+| Zielen / drehen | rechter Stick |
+| Feuern | ZR / R (R2 / R1) |
+| Visier/Zoom | ZL / L halten, X umschalten |
+| Springen | A (untere Taste) |
+| Benutzen / einsteigen / aussteigen | B (rechte Taste) |
+| Schleppkabel | Y (obere Taste) |
+| Sprinten | linken Stick drücken |
+| Pause | + oder − |
+
+Im Menü: Steuerkreuz bzw. Stick **hoch/runter** blättert durch die Einträge, **links/rechts** ändert den Wert
+(oder wechselt zwischen nebeneinanderliegenden Knöpfen), **A** bzw. **OK** bestätigt, **B** geht zurück, **+** startet
+die Schlacht. Mit der TV-Fernbedienung funktioniert das genauso. Die Tasten werden nach ihrer Position belegt
+(Android-Standard): „A“ ist die untere, „B“ die rechte Taste. Auf Nintendo-Controllern ist die Beschriftung daher
+vertauscht.
+
 ## Projektaufbau
 - `web/`: das Spiel (HTML5/WebGL mit [three.js](https://threejs.org) r149, ohne weitere Abhängigkeiten).
   Zum Testen am PC `web/index.html` direkt im Browser öffnen.
