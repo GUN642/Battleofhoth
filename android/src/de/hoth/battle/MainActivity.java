@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -54,6 +56,8 @@ public class MainActivity extends Activity {
     private volatile String updateApk;
     private long downloadId = -1;
     private Method evalJs;
+    private final LanNet net = new LanNet();
+    private WifiManager.MulticastLock mcLock;
     private String lastAxes = "";
 
     @Override
@@ -295,6 +299,29 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void installUpdate() {
             runOnUiThread(new Runnable() { public void run() { if (downloadId >= 0) install(); } });
         }
+
+        // ---- LAN-Mehrspieler (siehe LanNet)
+        @JavascriptInterface public String deviceName() { return Build.MODEL == null ? "Android" : Build.MODEL; }
+        @JavascriptInterface public String netHost(String info) { multicast(true); return net.host(info); }
+        @JavascriptInterface public void netInfo(String info) { net.setInfo(info); }
+        @JavascriptInterface public void netJoin(String ip, int port) { net.join(ip, port); }
+        @JavascriptInterface public void netSend(int peer, String msg) { net.send(peer, msg); }
+        @JavascriptInterface public void netKick(int peer) { net.kick(peer); }
+        @JavascriptInterface public String netPoll() { return net.poll(); }
+        @JavascriptInterface public void netScan(boolean on) { if (on) multicast(true); net.scan(on); }
+        @JavascriptInterface public String netHosts() { return net.hostsJson(); }
+        @JavascriptInterface public String netIp() { return LanNet.localIp(); }
+        @JavascriptInterface public void netStop() { net.stop(); net.scan(false); multicast(false); }
+    }
+
+    /** Manche Geräte filtern Broadcasts im WLAN, solange keine Multicast-Sperre gehalten wird. */
+    private synchronized void multicast(boolean on) {
+        try {
+            if (on && mcLock == null) {
+                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) { mcLock = wm.createMulticastLock("hoth"); mcLock.setReferenceCounted(false); mcLock.acquire(); }
+            } else if (!on && mcLock != null) { mcLock.release(); mcLock = null; }
+        } catch (Exception ignored) { }
     }
 
     // ------------------------------------------------------------------ Vollbild & Lebenszyklus
@@ -347,6 +374,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(poll);
+        net.shutdown();
+        multicast(false);
         if (web != null) web.destroy();
         super.onDestroy();
     }

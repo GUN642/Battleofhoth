@@ -1,11 +1,11 @@
 {
-  "versionCode": 4,
-  "versionName": "1.3",
+  "versionCode": 5,
+  "versionName": "1.4",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Android TV & Controller: Menü mit Steuerkreuz/Stick bedienbar (hoch/runter blättern, links/rechts ändern)",
-    "Volle Controller-Steuerung im Spiel (Sticks, Trigger, Tasten), z. B. Nintendo-Switch-Controller",
-    "Schieberegler halten den Fokus nicht mehr fest",
-    "App erscheint auf dem Android-TV-Startbildschirm (Banner) und startet beim Verbinden eines Controllers nicht neu"
+    "LAN-Mehrspieler: Spiel eröffnen oder im selben Netzwerk beitreten, Rebellen und Imperium gemischt",
+    "Mitspieler mit Namensschild, gemeinsame Schlacht mit KI, Fahrzeuge (AT-ST, AT-AT, Schneegleiter, Türme) für alle",
+    "Beitritt in laufende Schlachten möglich, Zuschauen nach dem letzten Leben",
+    "Controller: A/B/X/Y nach Nintendo-Beschriftung (umstellbar auf Xbox/PlayStation)"
   ]
 }

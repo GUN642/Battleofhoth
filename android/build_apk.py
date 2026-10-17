@@ -35,13 +35,13 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 4
-VERSION_NAME = '1.3'
+VERSION_CODE = 5
+VERSION_NAME = '1.4'
 RELEASE_NOTES = [
-    'Android TV & Controller: Menü mit Steuerkreuz/Stick bedienbar (hoch/runter blättern, links/rechts ändern)',
-    'Volle Controller-Steuerung im Spiel (Sticks, Trigger, Tasten), z. B. Nintendo-Switch-Controller',
-    'Schieberegler halten den Fokus nicht mehr fest',
-    'App erscheint auf dem Android-TV-Startbildschirm (Banner) und startet beim Verbinden eines Controllers nicht neu',
+    'LAN-Mehrspieler: Spiel eröffnen oder im selben Netzwerk beitreten, Rebellen und Imperium gemischt',
+    'Mitspieler mit Namensschild, gemeinsame Schlacht mit KI, Fahrzeuge (AT-ST, AT-AT, Schneegleiter, Türme) für alle',
+    'Beitritt in laufende Schlachten möglich, Zuschauen nach dem letzten Leben',
+    'Controller: A/B/X/Y nach Nintendo-Beschriftung (umstellbar auf Xbox/PlayStation)',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus
@@ -124,6 +124,8 @@ def build_manifest():
         ('uses-sdk', [(A, 'minSdkVersion', T_INT_DEC, MIN_SDK), (A, 'targetSdkVersion', T_INT_DEC, TARGET_SDK)], []),
         ('uses-permission', [(A, 'name', T_STRING, 'android.permission.INTERNET')], []),
         ('uses-permission', [(A, 'name', T_STRING, 'android.permission.REQUEST_INSTALL_PACKAGES')], []),
+        ('uses-permission', [(A, 'name', T_STRING, 'android.permission.CHANGE_WIFI_MULTICAST_STATE')], []),
+        ('uses-permission', [(A, 'name', T_STRING, 'android.permission.ACCESS_WIFI_STATE')], []),
         # Android TV: kein Touchscreen nötig, Leanback (TV-Startbildschirm) optional
         ('uses-feature', [(A, 'name', T_STRING, 'android.hardware.touchscreen'), (A, 'required', T_BOOL, False)], []),
         ('uses-feature', [(A, 'name', T_STRING, 'android.software.leanback'), (A, 'required', T_BOOL, False)], []),

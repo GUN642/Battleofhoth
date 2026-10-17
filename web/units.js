@@ -15,9 +15,16 @@ const G = {
   player: null, genHP: 150, genMax: 150,
   diff: { spread: 0.04, rate: 1 },
   msg: () => {}, onPlayerHit: () => {}, onKill: () => {}, hitMarker: () => {}, onPilotDown: () => {},
+  // Mehrspieler: alle menschlichen Spieler (lokal + entfernte Avatare beim Host)
+  players: [],
+  netHook: null,          // wird bei jedem neuen Laserschuss aufgerufen (Host: an Clients senden)
+  visualOnly: false,      // Client: Spiellogik läuft beim Host, hier nur Darstellung
+  creditKill: (pl) => { pl.kills++; },
+  onRemoteDown: () => {}, onRemoteEject: () => {},
 };
-// Seite des Spielers (Rebellen oder Imperium)
+// Seite des lokalen Spielers (Rebellen oder Imperium)
 function playerFaction() { return G.player && G.player.faction === IMP ? IMP : REB; }
+function isHuman(o) { return !!o && o.type === 'player'; }
 
 // ---------------------------------------------------------------- Waffentypen
 //  speed m/s, len/w = Optik, splash = Explosionsradius (tötet Infanterie),
@@ -165,7 +172,7 @@ function soldierTarget(s) {
     else if (d < d3) { b3 = t; d3 = d; }
   };
   for (const t of list) if (t.alive) consider(t);
-  if (s.f !== playerFaction() && targetAlive(G.player)) consider(G.player);
+  for (const pl of G.players) if (pl.faction !== s.f && targetAlive(pl)) consider(pl);
   _v1.set(s.pos.x, s.pos.y + 1.6, s.pos.z);
   for (const c of [b1, b2, b3]) {
     if (!c) continue;
@@ -175,7 +182,7 @@ function soldierTarget(s) {
   return null;
 }
 
-function rebelsHoldTrench() { return G.rebels.some(r => r.alive || r.livesLeft > 0) || (playerFaction() === REB && G.player.lives > 0); }
+function rebelsHoldTrench() { return G.rebels.some(r => r.alive || r.livesLeft > 0) || G.players.some(p => p.faction === REB && (p.alive || p.lives > 0)); }
 
 function updateSoldier(s, dt) {
   if (!s.alive) {
@@ -232,11 +239,26 @@ function updateSoldier(s, dt) {
   } else s.fireCd = Math.max(s.fireCd - dt, 0.3);
 }
 
+// Client: Soldat folgt dem Spielstand des Hosts
+function updateSoldierNet(s, dt) {
+  if (!s.alive) { if (s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5); return; }
+  const n = s.net;
+  if (n) {
+    const k = Math.min(1, dt * 8);
+    if (Math.hypot(n.x - s.pos.x, n.z - s.pos.z) > 8) { s.pos.x = n.x; s.pos.z = n.z; }
+    else { s.pos.x += (n.x - s.pos.x) * k; s.pos.z += (n.z - s.pos.z) * k; }
+    s.yaw += angDiff(s.yaw, n.yaw) * k;
+    s.moving = n.mv;
+  }
+  s.pos.y = heightAt(s.pos.x, s.pos.z);
+  if (s.moving) s.phase += dt * 9;
+}
+
 function killSoldier(s, killer) {
   if (!s.alive) return;
   s.alive = false; s.target = null; s.moving = false;
   FX.sparks(_v3.set(s.pos.x, s.pos.y + 1.3, s.pos.z), 6, 1, 0.5, 0.2);
-  if (killer === G.player) { G.onKill(s); }
+  if (isHuman(killer)) G.onKill(killer, s);
 }
 
 // ---------------------------------------------------------------- Laserschüsse
@@ -244,7 +266,7 @@ class Bolt {
   constructor() { this.p = new V3(); this.v = new V3(); this.prev = new V3(); this.dir = new V3(); this.f = 0; this.kind = 0; this.life = 0; this.owner = null; }
 }
 const boltPool = [];
-function fireBolt(kind, f, from, to, spread, owner) {
+function fireBolt(kind, f, from, to, spread, owner, fromNet) {
   const K = KIND[kind];
   const b = boltPool.pop() || new Bolt();
   b.dir.subVectors(to, from).normalize();
@@ -257,6 +279,7 @@ function fireBolt(kind, f, from, to, spread, owner) {
   b.p.copy(from); b.prev.copy(from); b.v.copy(b.dir).multiplyScalar(K.speed);
   b.f = f; b.kind = kind; b.life = K.life; b.owner = owner;
   G.bolts.push(b);
+  if (G.netHook && !fromNet) G.netHook(b);
   FX.muzzle(from, f, kind > 0);
   SFX.shot(from, kind, f);
   if (kind === 2 || kind === 3) FX.flash(from, f === REB ? 1 : 0.4, f === REB ? 0.35 : 1, 0.25, 4, 0.12);
@@ -326,10 +349,12 @@ function updateBolts(dt) {
         if (t >= 0 && t < bestT) { bestT = t; hitObj = s; hitType = 'sol'; }
       }
     }
-    const P = G.player;
-    if (P && P.alive && P.mode === 'foot' && !P.god && b.f !== P.faction) {
-      const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y, P.pos.z, 0.38, 1.8);
-      if (t >= 0 && t < bestT) { bestT = t; hitObj = P; hitType = 'player'; }
+    if (!G.visualOnly) {
+      for (const P of G.players) {
+        if (!P.alive || P.mode !== 'foot' || P.god > 0 || b.f === P.faction) continue;
+        const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y, P.pos.z, 0.38, 1.8);
+        if (t >= 0 && t < bestT) { bestT = t; hitObj = P; hitType = 'player'; }
+      }
     }
     if (b.f === IMP) {
       for (const tu of G.turrets) {
@@ -374,22 +399,28 @@ function updateBolts(dt) {
 }
 
 function onBoltHit(b, type, obj, p) {
-  const K = KIND[b.kind], byPlayer = b.owner === G.player;
+  const K = KIND[b.kind], byPlayer = b.owner === G.player, byHuman = isHuman(b.owner);
+  if (G.visualOnly) {             // Client: nur Effekte, Schaden berechnet der Host
+    if (K.splash > 0) { FX.explosion(p, K.splash * 0.6); SFX.boom(p, K.splash * 0.5); }
+    else if (type === 'ground') { FX.impact(p, b.f); SFX.impact(p); }
+    else FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
+    return;
+  }
   switch (type) {
-    case 'sol': killSoldier(obj, b.owner); if (byPlayer) G.hitMarker(); break;
-    case 'player': G.onPlayerHit(b.kind === 0 ? 'Blastertreffer' : 'Explosion'); break;
-    case 'turret': if (K.struct > 0) { obj.damage(K.struct, b.owner); if (byPlayer) G.hitMarker(); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
-    case 'speeder': if (K.veh > 0) { obj.damage(K.veh, b.owner); if (byPlayer) G.hitMarker(); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
-    case 'gen': if (byPlayer) G.hitMarker(); damageGenerator(K.struct); break;
+    case 'sol': killSoldier(obj, b.owner); if (byHuman) G.hitMarker(b.owner); break;
+    case 'player': G.onPlayerHit(obj, b.kind === 0 ? 'Blastertreffer' : 'Explosion'); break;
+    case 'turret': if (K.struct > 0) { obj.damage(K.struct, b.owner); if (byHuman) G.hitMarker(b.owner); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
+    case 'speeder': if (K.veh > 0) { obj.damage(K.veh, b.owner); if (byHuman) G.hitMarker(b.owner); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
+    case 'gen': if (byHuman) G.hitMarker(b.owner); damageGenerator(K.struct); break;
     case 'atst': case 'atat': {
       const dmg = type === 'atst' ? K.atst : K.atat;
-      if (dmg > 0) { obj.damage(dmg, b.owner); if (byPlayer) G.hitMarker(); }
+      if (dmg > 0) { obj.damage(dmg, b.owner); if (byHuman) G.hitMarker(b.owner); }
       else { FX.sparks(p, 5, 1, 0.8, 0.4); armorMsg(byPlayer); }
       break;
     }
     case 'ground': if (!K.splash) { FX.impact(p, b.f); SFX.impact(p); } break;
   }
-  if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player');
+  if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player' ? obj : null);
   else if (type !== 'ground') FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
 }
 
@@ -399,7 +430,7 @@ function armorMsg(byPlayer) {
     : 'Blaster wirkungslos gegen Panzerung! Steig in ein AT-ST oder AT-AT.', 'armor');
 }
 
-function explode(p, radius, f, owner, playerAlreadyHit) {
+function explode(p, radius, f, owner, hitPlayer) {
   FX.explosion(p, radius * 0.6);
   SFX.boom(p, radius * 0.5);
   const r2 = radius * radius;
@@ -409,10 +440,10 @@ function explode(p, radius, f, owner, playerAlreadyHit) {
     const dx = s.pos.x - p.x, dy = s.pos.y + 0.9 - p.y, dz = s.pos.z - p.z;
     if (dx * dx + dy * dy + dz * dz < r2) killSoldier(s, owner);
   }
-  const P = G.player;
-  if (P && f !== P.faction && !playerAlreadyHit && P.alive && P.mode === 'foot' && !P.god) {
+  for (const P of G.players) {
+    if (P === hitPlayer || f === P.faction || !P.alive || P.mode !== 'foot' || P.god > 0) continue;
     const dx = P.pos.x - p.x, dy = P.pos.y + 0.9 - p.y, dz = P.pos.z - p.z;
-    if (dx * dx + dy * dy + dz * dz < r2) G.onPlayerHit('Explosion');
+    if (dx * dx + dy * dy + dz * dz < r2) G.onPlayerHit(P, 'Explosion');
   }
 }
 
@@ -507,7 +538,7 @@ class ATAT {
     this.alive = false; this.fallDir = tow ? 1 : (Math.random() < 0.5 ? 1 : -1);
     FX.explosion(this.spheres[2], 5); SFX.boom(this.spheres[2], 3);
     G.msg(tow ? 'AT-AT mit dem Schleppkabel zu Fall gebracht!' : 'AT-AT zerstört!', 'kill');
-    if (by === G.player) G.player.kills++;
+    if (isHuman(by)) G.creditKill(by);
     if (this.pilot) G.onPilotDown(this);
   }
   chooseTarget() {
@@ -518,7 +549,7 @@ class ATAT {
     for (const t of G.turrets) if (t.alive) { const d = t.pos.distanceTo(this.pos); if (d < bd) { bd = d; bt = t; } }
     if (bt) opts.push(bt);
     for (const s of G.speeders) if (targetAlive(s) && s.pos.distanceTo(this.pos) < 170) { opts.push(s); break; }
-    if (playerFaction() === REB && targetAlive(G.player) && G.player.pos.distanceTo(this.pos) < 200) opts.push(G.player);
+    for (const pl of G.players) if (pl.faction === REB && targetAlive(pl) && pl.pos.distanceTo(this.pos) < 200) opts.push(pl);
     const reb = G.rebels.filter(r => r.alive && Math.abs(r.pos.x - this.pos.x) < 60 && r.pos.distanceTo(this.pos) < 200);
     if (reb.length) opts.push(pick(reb));
     this.target = opts.length ? pick(opts) : null;
@@ -542,7 +573,8 @@ class ATAT {
       }
       return;
     }
-    if (this.pilot) { this.updatePilot(dt); return; }
+    if (this.pilot === G.player) { this.updatePilot(dt); return; }
+    if (this.puppet || (this.pilot && this.pilot.remote)) { this.updateNet(dt); return; }
     this.thinkCd -= dt;
     if (this.thinkCd <= 0) { this.thinkCd = rand(2, 4); this.chooseTarget(); }
     if (this.target && !targetAlive(this.target)) this.target = null;
@@ -600,6 +632,29 @@ class ATAT {
       this.fireCd = 1.3;
       for (let i = 0; i < 2; i++) { this.muzzle(i, _v1); fireBolt(2, IMP, _v1, c.aim, 0.004, this.pilot); }
     }
+  }
+  // Pose aus dem Netz (Host-Spielstand oder entfernter Pilot)
+  updateNet(dt) {
+    const n = this.net;
+    if (n) {
+      const k = Math.min(1, dt * 10), ox = this.pos.x, oz = this.pos.z;
+      if (Math.hypot(n.x - ox, n.z - oz) > 30) { this.pos.x = n.x; this.pos.z = n.z; }
+      else { this.pos.x += (n.x - ox) * k; this.pos.z += (n.z - oz) * k; }
+      this.yaw += angDiff(this.yaw, n.yaw) * k;
+      this.pos.y = heightAt(this.pos.x, this.pos.z);
+      this.phase += Math.hypot(this.pos.x - ox, this.pos.z - oz) * 0.52;
+      const step = Math.floor(this.phase / (Math.PI / 2));
+      if (step !== this.lastStep) { this.lastStep = step; SFX.thump(this.pos); }
+      this.head.rotation.y += (n.hy - this.head.rotation.y) * k;
+      this.head.rotation.x += (n.hx - this.head.rotation.x) * k;
+    }
+    this.animate();
+    this.syncMesh();
+  }
+  netDestroy() {
+    if (!this.alive) return;
+    this.alive = false; this.fallDir = this.tangled ? 1 : (Math.random() < 0.5 ? 1 : -1);
+    FX.explosion(this.spheres[2], 5); SFX.boom(this.spheres[2], 3);
   }
   animate() {
     for (const L of this.legs) {
@@ -672,7 +727,7 @@ class ATST {
       this.alive = false; this.fallDir = Math.random() < 0.5 ? 1 : -1;
       FX.explosion(this.spheres[0], 4); SFX.boom(this.spheres[0], 2.5);
       G.msg('AT-ST zerstört!', 'kill');
-      if (by === G.player) G.player.kills++;
+      if (isHuman(by)) G.creditKill(by);
       if (this.pilot) G.onPilotDown(this);
     }
   }
@@ -683,7 +738,7 @@ class ATST {
       const dx = t.pos.x - this.pos.x, dz = t.pos.z - this.pos.z, d = (dx * dx + dz * dz) * bias;
       if (d < bd) { aimPoint(t, _v2); if (lineOfSight(_v1, _v2)) { bd = d; best = t; } }
     };
-    if (playerFaction() === REB && targetAlive(G.player)) test(G.player, 0.8);
+    for (const pl of G.players) if (pl.faction === REB && targetAlive(pl)) test(pl, 0.8);
     for (const t of G.turrets) if (t.alive) test(t, 0.7);
     for (const r of G.rebels) if (r.alive && Math.abs(r.pos.x - this.pos.x) < 150) test(r, 1);
     this.target = best;
@@ -700,7 +755,8 @@ class ATST {
       if (this.smokeT <= 0) { this.smokeT = 0.25; FX.smokeColumn(_v1.set(this.pos.x, this.pos.y + 1, this.pos.z), 0.8); }
       return;
     }
-    if (this.pilot) { this.updatePilot(dt); return; }
+    if (this.pilot === G.player) { this.updatePilot(dt); return; }
+    if (this.puppet || (this.pilot && this.pilot.remote)) { this.updateNet(dt); return; }
     this.thinkCd -= dt;
     if (this.thinkCd <= 0) { this.thinkCd = rand(1, 2); this.chooseTarget(); }
     if (this.target && !targetAlive(this.target)) this.target = null;
@@ -744,6 +800,26 @@ class ATST {
       L.an.rotation.x = -(L.th.rotation.x + L.kn.rotation.x);
     }
     this.head.position.y = 6.2 + Math.abs(Math.sin(this.phase)) * 0.15;
+  }
+  updateNet(dt) {
+    const n = this.net;
+    let moving = false;
+    if (n) {
+      const k = Math.min(1, dt * 10), ox = this.pos.x, oz = this.pos.z;
+      if (Math.hypot(n.x - ox, n.z - oz) > 20) { this.pos.x = n.x; this.pos.z = n.z; }
+      else { this.pos.x += (n.x - ox) * k; this.pos.z += (n.z - oz) * k; }
+      this.yaw += angDiff(this.yaw, n.yaw) * k;
+      this.pos.y = heightAt(this.pos.x, this.pos.z);
+      const d = Math.hypot(this.pos.x - ox, this.pos.z - oz);
+      this.phase += d * 1.23; moving = d > 0.002 || n.mv;
+    }
+    this.animate(moving);
+    this.sync();
+  }
+  netDestroy() {
+    if (!this.alive) return;
+    this.alive = false; this.fallDir = Math.random() < 0.5 ? 1 : -1;
+    FX.explosion(this.spheres[0], 4); SFX.boom(this.spheres[0], 2.5);
   }
   // Vom Spieler gesteuert
   updatePilot(dt) {
@@ -811,12 +887,19 @@ class Turret {
     this.hp -= d; FX.sparks(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 5, 1, 0.6, 0.2);
     if (this.hp <= 0) {
       this.alive = false;
-      if (by === G.player) G.player.kills++;
+      if (isHuman(by)) G.creditKill(by);
       FX.explosion(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 4); SFX.boom(this.pos, 2);
       this.head.visible = false; this.root.scale.y = 0.55;
       G.msg('Ein Geschützturm wurde zerstört!', 'turret');
-      if (this.manned && G.player.mode === 'turret') G.player.exitTurret(true);
+      if (this.manned && this.mannedBy === G.player && G.player.mode === 'turret') G.player.exitTurret(true);
+      else if (this.manned && this.mannedBy && this.mannedBy.remote) G.onRemoteEject(this.mannedBy);
     }
+  }
+  netDestroy() {
+    if (!this.alive) return;
+    this.alive = false;
+    FX.explosion(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 4); SFX.boom(this.pos, 2);
+    this.head.visible = false; this.root.scale.y = 0.55;
   }
   pickTarget() {
     _v1.set(this.pos.x, this.pos.y + 5, this.pos.z);
@@ -830,7 +913,7 @@ class Turret {
     for (const w of G.atsts) if (w.alive) consider(w, 200, 0.5);
     for (const w of G.atats) if (w.alive && !w.tangled) consider(w, 200, 0.7);
     for (const s of G.imps) if (s.alive && Math.abs(s.pos.x - this.pos.x) < 150) consider(s, 140, 1.2);
-    if (playerFaction() === IMP && targetAlive(G.player)) consider(G.player, 140, 1.1);
+    for (const pl of G.players) if (pl.faction === IMP && targetAlive(pl)) consider(pl, 140, 1.1);
     this.target = best;
   }
   update(dt) {
@@ -839,7 +922,12 @@ class Turret {
       if (this.smokeT <= 0) { this.smokeT = 0.3; FX.smokeColumn(_v1.set(this.pos.x, this.pos.y + 2.2, this.pos.z), 0.6); }
       return;
     }
-    if (this.manned) { this.apply(); return; }
+    if (this.manned && this.mannedBy === G.player) { this.apply(); return; }
+    if (this.puppet || this.manned) {        // Ausrichtung kommt aus dem Netz
+      const n = this.net;
+      if (n) { const k = Math.min(1, dt * 12); this.aimYaw += angDiff(this.aimYaw, n.ay) * k; this.aimPitch += (n.ap - this.aimPitch) * k; }
+      this.apply(); return;
+    }
     this.thinkCd -= dt;
     if (this.thinkCd <= 0) { this.thinkCd = rand(1, 2); this.pickTarget(); }
     if (this.target && !targetAlive(this.target)) this.target = null;
@@ -932,26 +1020,27 @@ class Speeder {
       for (const s of w.spheres) if (this.pos.distanceTo(s) < s.r + 1.5) { this.damage(99); return; }
       if (w.alive && Math.hypot(this.pos.x - w.pos.x, this.pos.z - w.pos.z) < 8.5 && this.pos.y < w.pos.y + 13) { this.damage(99); return; }
     }
-    for (const w of G.atsts) if (w.alive && this.pos.distanceTo(w.spheres[0]) < 3.5) { this.damage(99); w.damage(99, this.mode === 'player' ? G.player : null); return; }
+    for (const w of G.atsts) if (w.alive && this.pos.distanceTo(w.spheres[0]) < 3.5) { this.damage(99); w.damage(99, this.mode === 'player' || this.mode === 'remote' ? this.pilot : null); return; }
   }
   fire(dir, owner) {
     if (this.fireCd > 0) return;
     this.fireCd = 0.16; this.gun ^= 1;
     _v1.set(this.gun ? 1.95 : -1.95, 0.4, 1.4).applyMatrix4(this.mesh.matrixWorld);
     _v2.copy(_v1).addScaledVector(dir, 200);
-    fireBolt(4, REB, _v1, _v2, owner === G.player ? 0.002 : 0.02, owner);
+    fireBolt(4, REB, _v1, _v2, isHuman(owner) ? 0.002 : 0.02, owner);
   }
   damage(d, by) {
     if (!this.alive || this.mode === 'tow' || this.mode === 'parked' || this.mode === 'gone' || this.mode === 'crash') return;
     this.hp -= d;
     FX.sparks(this.pos, 6, 1, 0.7, 0.3);
     if (this.hp <= 0) {
-      const wasPlayer = this.mode === 'player';
-      if (by === G.player) G.player.kills++;
+      const wasPlayer = this.mode === 'player', wasRemote = this.mode === 'remote';
+      if (isHuman(by)) G.creditKill(by);
       this.mode = 'crash'; this.alive = false;
       FX.explosion(this.pos, 2.5); SFX.boom(this.pos, 1.5);
       G.msg(wasPlayer ? 'Dein Schneegleiter wurde abgeschossen!' : 'Ein Schneegleiter wurde abgeschossen!', 'speeder');
       if (wasPlayer) G.player.speederDestroyed();
+      if (wasRemote && this.pilot) G.onRemoteDown(this.pilot, 'Schneegleiter abgeschossen');
     }
   }
   startTow(atat) {
@@ -980,7 +1069,7 @@ class Speeder {
     if (T.t > 5.2) {
       this.cable.visible = false;
       a.tangled = false;
-      a.destroy(T.prev === 'player' ? G.player : null, true);
+      a.destroy(T.prev === 'ai' ? null : this.pilot, true);
       this.mode = T.prev; this.tow = null; this.pitch = 0.35; this.speed = 50;
     }
   }
@@ -1025,9 +1114,36 @@ class Speeder {
     if (Math.abs(this.pos.x) > 420 || this.pos.z < -820 || this.pos.z > 260) wantYaw = Math.atan2(-this.pos.x, -150 - this.pos.z);
     this.fly(dt, wantYaw, wantPitch, 48);
   }
+  // Pose aus dem Netz, mit Vorausberechnung über die Geschwindigkeit
+  updateNet(dt) {
+    const n = this.net;
+    this.mesh.visible = this.mode !== 'gone';
+    if (n) {
+      n.age = (n.age || 0) + dt;
+      const tx = n.x + n.vx * n.age, ty = n.y + n.vy * n.age, tz = n.z + n.vz * n.age, k = Math.min(1, dt * 12);
+      if (Math.hypot(tx - this.pos.x, tz - this.pos.z) > 40) this.pos.set(tx, ty, tz);
+      else { this.pos.x += (tx - this.pos.x) * k; this.pos.y += (ty - this.pos.y) * k; this.pos.z += (tz - this.pos.z) * k; }
+      this.yaw += angDiff(this.yaw, n.yaw) * k; this.pitch += (n.pitch - this.pitch) * k; this.roll += (n.roll - this.roll) * k;
+      this.vel.set(n.vx, n.vy, n.vz);
+    }
+    // Schleppkabel um die Beine des AT-AT
+    const a = this.mode === 'tow' && this.netTow != null ? G.atats[this.netTow] : null;
+    this.cable.visible = !!a;
+    if (a) {
+      const arr = this.cable.geometry.attributes.position.array, order = [0, 2, 3, 1, 0];
+      let k = 0;
+      for (let i = 0; i < 5; i++) { a.legWorld(order[i], _v1); _v1.y = a.pos.y + 6 + i * 0.4; arr[k++] = _v1.x; arr[k++] = _v1.y; arr[k++] = _v1.z; }
+      for (let i = 5; i < 8; i++) { arr[k++] = this.pos.x; arr[k++] = this.pos.y; arr[k++] = this.pos.z; }
+      this.cable.geometry.attributes.position.needsUpdate = true;
+    }
+    if (this.mode === 'crash') { this.smokeT -= dt; if (this.smokeT <= 0) { this.smokeT = 0.05; FX.smokeColumn(this.pos, 0.5); } }
+    this.sync();
+  }
   update(dt) {
     this.fireCd -= dt;
+    if (this.puppet && (this.pilot !== G.player || this.mode === 'tow')) { this.updateNet(dt); return; }
     switch (this.mode) {
+      case 'remote': this.checkCollide(); this.sync(); break;
       case 'ai': this.updateAI(dt); break;
       case 'tow': this.updateTow(dt); break;
       case 'crash': {

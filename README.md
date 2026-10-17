@@ -81,25 +81,44 @@ Xbox- oder PlayStation-Controller per Bluetooth). Es erscheint mit Banner auf de
 | Zielen / drehen | rechter Stick |
 | Feuern | ZR / R (R2 / R1) |
 | Visier/Zoom | ZL / L halten, X umschalten |
-| Springen | A (untere Taste) |
-| Benutzen / einsteigen / aussteigen | B (rechte Taste) |
-| Schleppkabel | Y (obere Taste) |
+| Springen | A |
+| Benutzen / einsteigen / aussteigen | B |
+| Schleppkabel | Y |
 | Sprinten | linken Stick drücken |
 | Pause | + oder − |
 
 Im Menü: Steuerkreuz bzw. Stick **hoch/runter** blättert durch die Einträge, **links/rechts** ändert den Wert
 (oder wechselt zwischen nebeneinanderliegenden Knöpfen), **A** bzw. **OK** bestätigt, **B** geht zurück, **+** startet
-die Schlacht. Mit der TV-Fernbedienung funktioniert das genauso. Die Tasten werden nach ihrer Position belegt
-(Android-Standard): „A“ ist die untere, „B“ die rechte Taste. Auf Nintendo-Controllern ist die Beschriftung daher
-vertauscht.
+die Schlacht. Mit der TV-Fernbedienung funktioniert das genauso. Die Tasten folgen standardmäßig der
+**Nintendo-Beschriftung** (A = rechte Taste). Für Xbox- oder PlayStation-Controller im Menü unter „Controller-Tasten“
+auf „Xbox / PlayStation“ umstellen.
+
+## Mehrspieler im lokalen Netzwerk
+Alle Geräte mit der App im selben WLAN bzw. Heimnetz (Handys, Tablets, Android TV) können gemeinsam spielen:
+
+1. Im Hauptmenü **Mehrspieler (LAN)** wählen, Namen und Seite (Rebellen oder Imperium) einstellen.
+2. Ein Gerät tippt **Spiel eröffnen** – es wird zum Host. Seine Einstellungen (Truppenzahl, Leben, Schwierigkeit)
+   gelten für alle.
+3. Die anderen sehen das Spiel unter **Gefundene Spiele** und treten bei (oder geben die angezeigte IP-Adresse des
+   Hosts von Hand ein).
+4. Der Host startet die Schlacht. Spieler können auch in eine laufende Schlacht einsteigen.
+
+Rebellen und Imperium können gemischt besetzt sein, die übrigen Einheiten steuert die KI. Jeder Spieler hat eigene
+Leben; wer keine mehr hat, schaut der Schlacht weiter zu. Der Host berechnet die Schlacht und sendet den Spielstand
+etwa 15-mal pro Sekunde (TCP-Port 47780, Spielsuche per UDP-Broadcast auf Port 47781). Verlässt der Host das Spiel,
+endet die Runde für alle. Gäste-WLANs mit „Client-Isolation“ verhindern die Verbindung zwischen Geräten.
+Der Mehrspieler funktioniert nur in der Android-App, nicht in der Browser-Version.
 
 ## Projektaufbau
 - `web/`: das Spiel (HTML5/WebGL mit [three.js](https://threejs.org) r149, ohne weitere Abhängigkeiten).
   Zum Testen am PC `web/index.html` direkt im Browser öffnen.
   - `world.js` Gelände, Texturen, Materialien, Himmel, Effekte · `audio.js` Sound-Synthese ·
     `units.js` Einheiten, KI, Laser · `post.js` Bloom/Tonemapping · `game.js` Spieler, HUD, Menü ·
-    `update.js` Update-Dialog
-- `android/`: Android-App (Vollbild-WebView, lädt `web/` aus den Assets, Update-Prüfung) und Build-Skript.
+    `nav.js` Controller & Menü-Navigation · `net.js` LAN-Mehrspieler · `update.js` Update-Dialog
+  - Mehrspieler im Browser testen: `web/` über einen lokalen Webserver öffnen und in zwei Fenstern
+    `index.html?net=test` aufrufen (Transport über BroadcastChannel)
+- `android/`: Android-App (Vollbild-WebView, lädt `web/` aus den Assets, Update-Prüfung, Controller-Weiterleitung,
+  `LanNet.java` für den LAN-Mehrspieler) und Build-Skript.
 - `dist/BattleOfHoth.apk`: die fertig gebaute und signierte APK, `dist/version.json`: Versionsinfo für die Update-Prüfung.
 
 ## APK selbst bauen

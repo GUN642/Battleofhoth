@@ -21,6 +21,7 @@ const SETTINGS = [
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
   { key: 'sens', label: 'Blick-Empfindlichkeit', min: 1, max: 10, def: 5 },
   { key: 'gfx', label: 'Grafik', min: 0, max: 2, def: 1, names: ['Niedrig', 'Mittel', 'Hoch'] },
+  { key: 'padLayout', label: 'Controller-Tasten', min: 0, max: 1, def: 0, names: ['Nintendo', 'Xbox / PlayStation'], wide: true },
 ];
 const CFG = {};
 SETTINGS.forEach(s => (CFG[s.key] = s.def));
@@ -199,7 +200,7 @@ const P = G.player = {
   bob: 0, recoil: 0, god: 0, deathCause: '',
   exitTurret(destroyed) {
     const t = this.turret; if (!t) return;
-    t.manned = false; this.turret = null; this.mode = 'foot';
+    t.manned = false; t.mannedBy = null; this.turret = null; this.mode = 'foot';
     const back = trenchZ(t.pos.x) < t.pos.z ? 3 : -3;
     this.pos.set(t.pos.x + 1, 0, t.pos.z + back); this.pos.y = heightAt(this.pos.x, this.pos.z);
     this.yaw = t.aimYaw - Math.PI; this.pitch = 0;
@@ -255,11 +256,23 @@ function killPlayer(cause, where) {
   $('deadTitle').textContent = cause === 'Blastertreffer' ? 'Getroffen!' : cause + '!';
   SFX.boom(null, 0.6);
 }
-G.onPlayerHit = (cause) => { if (P.god > 0 || !P.alive) return; killPlayer(cause); };
-G.onKill = () => { P.kills++; };
-G.onPilotDown = (w) => { if (P.walker === w) killPlayer(WALKER_NAME[w.type] + ' zerstört', camera.position); };
+G.onPlayerHit = (pl, cause) => {
+  if (pl && pl.remote) { if (!pl.god) NET.remoteDie(pl, cause); return; }
+  if (P.god > 0 || !P.alive) return;
+  killPlayer(cause);
+};
+G.onKill = (pl) => { G.creditKill(pl); };
+G.onPilotDown = (w) => {
+  if (P.walker === w) killPlayer(WALKER_NAME[w.type] + ' zerstört', camera.position);
+  else if (w.pilot && w.pilot.remote) NET.remoteDie(w.pilot, WALKER_NAME[w.type] + ' zerstört');
+};
+G.onRemoteDown = (av, cause) => NET.remoteDie(av, cause);
+G.onRemoteEject = (av) => NET.sendTo(av.id, { t: 'eject' });
 let hitTimer = 0;
-G.hitMarker = () => { $('hit').classList.add('on'); hitTimer = 0.15; SFX.click(); };
+G.hitMarker = (owner) => {
+  if (owner && owner.remote) { if (G.time - owner.hitT > 0.1) { owner.hitT = G.time; NET.sendTo(owner.id, { t: 'hit' }); } return; }
+  $('hit').classList.add('on'); hitTimer = 0.15; SFX.click();
+};
 
 // ---------------------------------------------------------------- Meldungen
 const msgTimes = {};
@@ -479,9 +492,13 @@ function updatePlayer(dt) {
   if (P.mode === 'dead') {
     P.respawnT -= dt;
     const left = Math.max(0, P.lives);
-    $('deadText').textContent = left > 0 ? `Noch ${left} ${left === 1 ? 'Leben' : 'Leben'} – Rückkehr in ${Math.ceil(P.respawnT)} s` : 'Keine Leben mehr';
-    camera.position.y = Math.max(heightAt(camera.position.x, camera.position.z) + 0.4, camera.position.y - dt * 1.5);
-    camera.rotation.z = Math.min(0.5, camera.rotation.z + dt * 0.4);
+    $('deadText').textContent = left > 0 ? `Noch ${left} ${left === 1 ? 'Leben' : 'Leben'} – Rückkehr in ${Math.ceil(P.respawnT)} s`
+      : NET.inGame ? 'Keine Leben mehr – du schaust der Schlacht zu' : 'Keine Leben mehr';
+    if (left <= 0 && NET.inGame && P.respawnT < -2) { $('dead').classList.add('hidden'); menuCamera(dt, true); }
+    else {
+      camera.position.y = Math.max(heightAt(camera.position.x, camera.position.z) + 0.4, camera.position.y - dt * 1.5);
+      camera.rotation.z = Math.min(0.5, camera.rotation.z + dt * 0.4);
+    }
     gun.visible = false;
     if (P.respawnT <= 0 && P.lives > 0) spawnPlayer(false);
     setPrompt(prompts);
@@ -545,11 +562,11 @@ function updatePlayer(dt) {
           G.msg(u.type === 'atat' ? 'AT-AT übernommen! Feuere auf Geschütztürme und den Schildgenerator. Vorsicht vor Schleppkabeln!'
             : 'AT-ST übernommen! Räume den Schützengraben und zerstöre die Geschütztürme.', 'win');
         } else if (u.type === 'turret') {
-          P.mode = 'turret'; P.turret = u; u.manned = true;
+          P.mode = 'turret'; P.turret = u; u.manned = true; u.mannedBy = P;
           P.yaw = u.aimYaw - Math.PI; P.pitch = clamp(u.aimPitch, -0.35, 0.6);
           G.msg('Geschützturm bemannt – ziele auf die Läufer!', 'tin');
         } else {
-          P.mode = 'speeder'; P.speeder = u; u.mode = 'player'; u.speed = 20; u.pitch = 0.35;
+          P.mode = 'speeder'; P.speeder = u; u.mode = 'player'; u.pilot = P; u.speed = 20; u.pitch = 0.35;
           P.yaw = u.yaw - Math.PI; P.pitch = 0.3;
           G.msg('Schneegleiter gestartet! Flieg tief an ein AT-AT und feuere das Schleppkabel ab.', 'sin');
         }
@@ -630,7 +647,7 @@ function updatePlayer(dt) {
     const a = nearestTowable(sp);
     if (a) {
       prompts.push(IS_TOUCH ? 'KABEL: Schleppkabel abfeuern!' : '[F] Schleppkabel abfeuern!');
-      if (harpoon) sp.startTow(a);
+      if (harpoon) { if (NET.mode === 'client') NET.requestTow(sp, a); else sp.startTow(a); }
     } else if (harpoon) G.msg('Kein AT-AT in Reichweite – flieg tief (unter 17 m) und nah heran.', 'harp');
     const alt = sp.pos.y - heightAt(sp.pos.x, sp.pos.z);
     prompts.push(alt < 12 ? '[E] Aussteigen' : 'Höhe ' + alt.toFixed(0) + ' m');
@@ -756,15 +773,22 @@ function setupBattle(cfg) {
   for (let i = 0; i < cfg.aiSpeeders; i++) G.speeders.push(new Speeder('ai', rand(-120, 120), rand(35, 55), rand(60, 140), Math.PI + rand(-0.3, 0.3)));
 }
 
-function newGame() {
+// opts (Mehrspieler): { cfg: Schlacht-Einstellungen des Hosts, faction, mp: 'host' | 'client' }
+function newGame(opts) {
   demo = false;
-  setupBattle(CFG);
-  P.faction = CFG.faction === 1 ? IMP : REB;
+  const mp = opts && opts.mp;
+  const cfg = mp ? Object.assign({}, CFG, opts.cfg) : CFG;
+  if (!mp && NET.active) NET.leave();
+  setupBattle(cfg);
+  G.players = [P];
+  P.faction = mp ? opts.faction : (CFG.faction === 1 ? IMP : REB);
   setGunFaction(P.faction);
-  P.lives = CFG.lives; P.kills = 0; spawnPlayer(true);
+  P.lives = cfg.lives; P.kills = 0; spawnPlayer(true);
   state = 'playing'; endTimer = 0; battleT = 0; document.title = 'Hoth';
   resetInput();
-  ['menu', 'over', 'pause'].forEach(id => $(id).classList.add('hidden'));
+  ['menu', 'over', 'pause', 'mp'].forEach(id => $(id).classList.add('hidden'));
+  $('againBtn').classList.remove('hidden'); $('overWait').classList.add('hidden');
+  $('quitBtn').textContent = mp ? 'Spiel verlassen' : 'Hauptmenü';
   $('hud').classList.remove('hidden');
   $('touch').classList.toggle('hidden', !IS_TOUCH);
   $('joyHint').style.display = '';
@@ -778,16 +802,22 @@ function newGame() {
 }
 
 function startDemo() {
-  demo = true;
+  demo = true; G.players = [P];
   setupBattle({ rebels: 24, rebLives: 2, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
   P.mode = 'spectate'; P.alive = false; P.lives = 0; P.faction = REB; P.walker = null;
 }
 
-function showMenu() {
+// opts.mp: zurück in die Mehrspieler-Lobby statt ins Hauptmenü
+function showMenu(opts) {
+  const toMp = opts && opts.mp;
+  NET.endNetGame();
+  if (NET.active && !toMp) NET.leave();
   state = 'menu'; document.title = 'Hoth-Menu';
   if (document.pointerLockElement) document.exitPointerLock();
-  ['over', 'pause', 'hud', 'touch'].forEach(id => $(id).classList.add('hidden'));
-  $('menu').classList.remove('hidden');
+  ['over', 'pause', 'hud', 'touch', 'dead'].forEach(id => $(id).classList.add('hidden'));
+  $(toMp ? 'mp' : 'menu').classList.remove('hidden');
+  if (toMp) $('menu').classList.add('hidden');
+  if (toMp && NET.active) NET.showLobby();
   buildSettingsUI();
   startDemo();
 }
@@ -829,9 +859,9 @@ window.hothBack = () => {
 
 $('startBtn').addEventListener('click', () => { SFX.init(); newGame(); });
 $('resumeBtn').addEventListener('click', resume);
-$('quitBtn').addEventListener('click', showMenu);
-$('againBtn').addEventListener('click', newGame);
-$('menuBtn').addEventListener('click', showMenu);
+$('quitBtn').addEventListener('click', () => { if (NET.mode === 'client') { NET.leave(); showMenu({ mp: true }); } else showMenu(); });
+$('againBtn').addEventListener('click', () => { if (NET.mode === 'host') NET.startGame(); else newGame(); });
+$('menuBtn').addEventListener('click', () => showMenu({ mp: NET.active }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 function checkEnd(dt) {
@@ -867,14 +897,28 @@ function simulate(dt) {
   for (const s of G.speeders) s.update(dt);
   updateBolts(dt);
 }
+// Client: Spiellogik läuft beim Host, hier nur Darstellung + eigenes Fahrzeug
+function clientSimulate(dt) {
+  if (!(dt > 0)) return;
+  G.time += dt;
+  SFX.tick(dt);
+  for (const s of G.rebels) updateSoldierNet(s, dt);
+  for (const s of G.imps) updateSoldierNet(s, dt);
+  for (const w of G.atats) w.update(dt);
+  for (const w of G.atsts) w.update(dt);
+  for (const t of G.turrets) t.update(dt);
+  for (const s of G.speeders) s.update(dt);
+  updateBolts(dt);
+}
 function drawDynamic() {
   boltRed.begin(); boltGreen.begin();
   for (const b of G.bolts) (b.f === REB ? boltRed : boltGreen).add(b);
   boltRed.end(); boltGreen.end();
   rebR.update(G.rebels); impR.update(G.imps);
+  NET.drawAvatars(lastDt);
 }
 
-function menuCamera(dt) {
+function menuCamera(dt, spectate) {
   menuT += dt * 0.05;
   const x = Math.sin(menuT) * 130;
   camera.position.set(x, heightAt(x, 40) + 16, 40);
@@ -882,25 +926,28 @@ function menuCamera(dt) {
   gun.visible = false;
   // Demo-Schlacht neu starten, wenn sie vorbei ist
   const enemies = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
-  if (!enemies || G.genHP <= 0 || G.time > 420) startDemo();
+  if (!spectate && (!enemies || G.genHP <= 0 || G.time > 420)) startDemo();
 }
 
-let last = performance.now();
+let last = performance.now(), lastDt = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-  last = now;
-  if (state === 'playing') {
+  last = now; lastDt = dt;
+  const running = state === 'playing' || (state === 'paused' && NET.inGame);   // im Mehrspieler läuft die Schlacht weiter
+  if (running) {
     battleT += dt;
-    updatePlayer(dt);
-    simulate(dt);
-    updateHUD(dt);
-    checkEnd(dt);
+    if (state === 'playing') updatePlayer(dt);
+    if (NET.mode === 'client' && NET.inGame) clientSimulate(dt); else simulate(dt);
+    if (state === 'playing') updateHUD(dt);
+    if (NET.inGame) { if (NET.mode === 'host') NET.checkEnd(dt); }
+    else checkEnd(dt);
   } else if (state === 'menu') {
     simulate(dt);
     menuCamera(dt);
   }
-  if (state === 'playing' || state === 'menu') FX.update(dt);
+  NET.tick(dt);
+  if (running || state === 'menu') FX.update(dt);
   // Kamera-Wackeln bei nahen Explosionen
   const sh = FX.shake * FX.shake * 0.35;
   if (sh > 0.001 && state === 'playing') { camera.position.x += rand(-sh, sh); camera.position.y += rand(-sh, sh); camera.rotation.z += rand(-sh, sh) * 0.15; }
@@ -913,8 +960,9 @@ function frame(now) {
 }
 
 // Debug-/Testschnittstelle
-window.__hoth = { G, P, CFG, newGame, showMenu, simulate, setupBattle, get state() { return state; }, input, renderer, scene, camera };
+window.__hoth = { G, P, CFG, NET, newGame, showMenu, simulate, setupBattle, get state() { return state; }, input, renderer, scene, camera };
 
 applyGfx();
+NET.initUI();
 showMenu();
 requestAnimationFrame(frame);

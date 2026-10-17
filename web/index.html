@@ -136,6 +136,23 @@
   .stats2 span { display: block; font-size: 0.7em; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.7; }
   .stats2 b { font-size: 1.4em; color: #fff; }
   #updModal { z-index: 20; }
+  /* Mehrspieler */
+  .mppanel { width: min(560px, 100%); text-align: left; }
+  .mppanel h1, .mppanel .kicker { text-align: center; }
+  .mpstatus { text-align: center; font-size: clamp(11px, 2.2vmin, 14px); color: #cfe0f5; margin: 4px 0 10px; line-height: 1.45; }
+  .mpstatus.err { color: #ff9a8a; }
+  .mppanel input[type=text] { width: 100%; font: inherit; font-size: clamp(13px, 2.4vmin, 16px); color: #fff; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin: 4px 0 8px; -webkit-user-select: text; user-select: text; touch-action: auto; }
+  .mppanel input[type=text]:focus { outline: none; border-color: var(--acc); }
+  .mplist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .mplist .mphost { text-align: left; text-transform: none; letter-spacing: 0.02em; }
+  .mpempty { text-align: center; color: #9fb2c9; font-size: clamp(11px, 2.1vmin, 13px); padding: 8px; }
+  .mpmanual { display: flex; gap: 8px; align-items: center; }
+  .mpmanual input { flex: 1; margin: 0 !important; }
+  #mpPlayers { display: flex; flex-direction: column; gap: 5px; }
+  .mpplayer { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center; padding: 7px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); font-size: clamp(12px, 2.3vmin, 15px); }
+  .mpplayer span { font-size: 0.72em; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
+  .mpplayer.reb span { color: var(--acc); } .mpplayer.imp span { color: #9fd0ff; }
+  .mpplayer i { font-style: normal; font-size: 0.75em; opacity: 0.7; }
   #updNotes { text-align: left; margin: 10px 0 0; padding-left: 18px; color: #d6e2f2; font-size: clamp(11px, 2.2vmin, 14px); line-height: 1.5; }
   #updProg { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin-top: 14px; }
   #updBar { height: 100%; width: 0; background: linear-gradient(90deg, var(--acc), var(--acc2)); transition: width 0.3s; }
@@ -183,7 +200,7 @@
       <div class="kicker">Rebellen-Allianz · Echo Base</div>
       <h1>Battle<br>of Hoth</h1>
       <div class="sub">Die imperiale Armee landet auf Hoth. Verteidige als Rebell den Schützengraben – oder führe als Imperialer die AT-ATs gegen Echo Base.</div>
-      <div class="btns"><button id="startBtn">Schlacht starten</button></div>
+      <div class="btns"><button id="startBtn">Schlacht starten</button><button id="mpBtn" class="sec">Mehrspieler (LAN)</button></div>
       <div class="ver"><span id="verLabel">Web-Version</span><button id="updBtn" class="sec small hidden">Nach Updates suchen</button></div>
       <details class="help">
         <summary>Steuerung &amp; Tipps</summary>
@@ -202,6 +219,29 @@
   </div>
 </div>
 
+<div id="mp" class="screen hidden">
+  <div class="panel glass mppanel">
+    <div class="kicker">Lokales Netzwerk</div>
+    <h1 style="font-size:clamp(24px,6vmin,44px)">Mehrspieler</h1>
+    <div id="mpStatus" class="mpstatus"></div>
+    <div class="set wide"><label>Dein Name</label><input id="mpName" type="text" maxlength="16" autocomplete="off" spellcheck="false"></div>
+    <div class="set wide" id="mpFactionRow"><label>Deine Seite</label><div class="seg" id="mpFaction"><button type="button">Rebellen</button><button type="button">Imperium</button></div></div>
+    <div id="mpStartView">
+      <div class="btns"><button id="mpHost">Spiel eröffnen</button></div>
+      <div class="group">Gefundene Spiele</div>
+      <div id="mpList" class="mplist"></div>
+      <div class="mpmanual"><input id="mpIp" type="text" placeholder="oder IP-Adresse des Hosts" autocomplete="off" spellcheck="false"><button id="mpJoinIp" class="sec small" type="button">Verbinden</button></div>
+    </div>
+    <div id="mpLobby" class="hidden">
+      <div class="group">Spieler</div>
+      <div id="mpPlayers"></div>
+      <div id="mpWait" class="mpempty hidden">Warte, bis der Host die Schlacht startet …</div>
+      <div class="btns"><button id="mpGo">Schlacht starten</button></div>
+    </div>
+    <div class="btns"><button id="mpBack" class="sec">Zurück</button></div>
+  </div>
+</div>
+
 <div id="pause" class="screen hidden">
   <div class="panel glass">
     <div class="kicker">Spiel angehalten</div>
@@ -215,6 +255,7 @@
     <div class="kicker">Schlacht beendet</div>
     <h1 id="overTitle">Sieg</h1>
     <div id="overText"></div>
+    <div id="overWait" class="mpempty hidden">Der Host kann eine neue Runde starten.</div>
     <div class="btns"><button id="againBtn">Nochmal</button><button id="menuBtn" class="sec">Hauptmenü</button></div>
   </div>
 </div>
@@ -236,6 +277,7 @@
 <script src="units.js"></script>
 <script src="post.js"></script>
 <script src="nav.js"></script>
+<script src="net.js"></script>
 <script src="game.js"></script>
 <script src="update.js"></script>
 </body>
