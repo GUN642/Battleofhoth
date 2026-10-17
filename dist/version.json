@@ -1,11 +1,11 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
+  "versionCode": 7,
+  "versionName": "1.6",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Waffenauswahl: Blastergewehr, Repetierblaster, Präzisionsgewehr und Thermaldetonator",
-    "Jede Waffe mit eigenem Modell, Sound, Feuerrate, Überhitzung und Zoom (Präzisionsgewehr mit starkem Zielfernrohr)",
-    "Thermaldetonatoren: 3 pro Leben, Bogenwurf mit Abprallen und Flächenwirkung gegen Soldaten – auch im Mehrspieler",
-    "Wechseln mit 1–4/Mausrad, Controller Y oder Steuerkreuz links/rechts, Antippen der Waffenleiste"
+    "Neue Karte Endor: Waldmond mit Mammutbäumen, Farnen und Lichtstrahlen – im Menü unter „Karte“ wählbar",
+    "Rebellen verteidigen den Bunkereingang, mit Han Solo, Chewbacca, R2-D2 und C-3PO",
+    "Ewoks kämpfen mit Speeren und lösen Baumstammfallen gegen die AT-STs aus (auch per Hand mit E)",
+    "Bunkergeschütze auf dem Dach, Imperium kann Sprengladungen am Bunkertor anbringen, auch im LAN-Mehrspieler"
   ]
 }

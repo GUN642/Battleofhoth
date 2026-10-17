@@ -78,8 +78,8 @@ function testTransport() {
 // ---------------------------------------------------------------- Avatare der Mitspieler
 const PMODES = ['foot', 'turret', 'speeder', 'walker', 'dead', 'spectate'];
 const SPMODES = ['parked', 'ai', 'player', 'remote', 'tow', 'crash', 'gone'];
-const BATTLE_KEYS = ['rebels', 'rebLives', 'troopers', 'atst', 'atat', 'aiSpeeders', 'turrets', 'lives', 'diff'];
-const GLOBAL_MSG = new Set(['kill', 'turret', 'gen', 'tow', 'pad']);
+const BATTLE_KEYS = ['map', 'rebels', 'rebLives', 'ewoks', 'troopers', 'atst', 'atat', 'aiSpeeders', 'turrets', 'bunkerGuns', 'lives', 'diff'];
+const GLOBAL_MSG = new Set(['kill', 'turret', 'gen', 'tow', 'pad', 'trap', 'sap', 'herohan', 'herochewie']);
 
 function nameSprite(name, f) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
@@ -310,6 +310,8 @@ NET.installHooks = function () {
     if (NET.mode === 'host') NET.broadcast({ t: 'g', f: g.f, o, v, ex: g.owner && g.owner.remote ? g.owner.id : -1 });
     else if (g.owner === P) NET.send({ t: 'nade', f: g.f, o, v });
   };
+  // Sprengladungen am Bunkertor: Host verteilt jede Ladung an alle
+  G.netChargeHook = () => { if (NET.mode === 'host') NET.broadcast({ t: 'cg' }); };
   if (NET.mode === 'host' && !NET.origMsg) {
     NET.origMsg = G.msg;
     G.msg = (text, key) => { NET.origMsg(text, key); if (GLOBAL_MSG.has(key)) NET.broadcast({ t: 'msg', x: text, k: key }); };
@@ -317,7 +319,7 @@ NET.installHooks = function () {
 };
 NET.endNetGame = function () {
   NET.inGame = false;
-  G.netHook = null; G.netNadeHook = null; G.visualOnly = false; G.players = [P];
+  G.netHook = null; G.netNadeHook = null; G.netChargeHook = null; G.visualOnly = false; G.players = [P];
   if (NET.origMsg) { G.msg = NET.origMsg; NET.origMsg = null; }
   for (const av of NET.avatars.values()) av.dispose();
   NET.avatars.clear();
@@ -327,7 +329,7 @@ NET.endNetGame = function () {
 // Siegbedingung im Mehrspieler (nur Host)
 NET.checkEnd = function (dt) {
   const hum = G.players;
-  const impLeft = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive) || hum.some(p => p.faction === IMP && (p.alive || p.lives > 0));
+  const impLeft = G.imps.some(s => s.alive || s.livesLeft > 0) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive) || hum.some(p => p.faction === IMP && (p.alive || p.lives > 0));
   const rebLeft = G.rebels.some(s => s.alive || s.livesLeft > 0) || G.turrets.some(t => t.alive) || hum.some(p => p.faction === REB && (p.alive || p.lives > 0));
   const w = G.genHP <= 0 ? IMP : !impLeft ? REB : !rebLeft ? IMP : null;
   if (w === null) { NET.endT = 0; return; }
@@ -336,7 +338,9 @@ NET.checkEnd = function (dt) {
 };
 NET.finish = function (w) {
   const win = w === P.faction;
-  endGame(win, w === REB ? 'Die Rebellen haben Echo Base verteidigt!' : 'Das Imperium hat Echo Base erobert!');
+  const endor = MAP.id === 'endor';
+  endGame(win, w === REB ? (endor ? 'Die Rebellen haben den Bunkereingang auf Endor gehalten!' : 'Die Rebellen haben Echo Base verteidigt!')
+    : (endor ? 'Das Imperium hat den Bunker auf Endor gestürmt!' : 'Das Imperium hat Echo Base erobert!'));
   NET.inGame = false;
   if (NET.mode === 'host') NET.tr.info(NET.beaconInfo());
   $('againBtn').classList.toggle('hidden', NET.mode !== 'host');
@@ -358,7 +362,7 @@ NET.snapshot = function () {
       s.tow ? G.atats.indexOf(s.tow.atat) : -1);
   }
   for (const p of G.players) pl.push(pid(p), p === P ? NET.name : p.name, p.faction, R2(p.pos.x), R2(p.pos.y), R2(p.pos.z), R2(p.yaw), R2(p.pitch), PMODES.indexOf(p.mode), p.alive ? 1 : 0, p.kills, p.lives);
-  return { t: 's', gen: R2(G.genHP), r: sol(G.rebels), i: sol(G.imps), a, st, tu, sp, pl };
+  return { t: 's', gen: R2(G.genHP), r: sol(G.rebels), i: sol(G.imps), a, st, tu, sp, pl, tr: G.traps.map(t => t.state) };
 };
 
 NET.hostTick = function (dt) {
@@ -461,6 +465,14 @@ NET.onHostMsg = function (id, m) {
       if (!av || !NET.inGame || !Array.isArray(m.o) || !Array.isArray(m.v) || !m.o.concat(m.v).every(isFinite)) return;
       throwGrenade(av.faction, new THREE.Vector3(m.o[0], m.o[1], m.o[2]), new THREE.Vector3(m.v[0], m.v[1], m.v[2]).clampLength(0, 30), av);
       break;
+    case 'trap': {
+      const t = G.traps[m.i | 0];
+      if (av && NET.inGame && t && av.faction === REB) t.trigger(av);
+      break;
+    }
+    case 'charge':
+      if (av && NET.inGame && av.faction === IMP && G.genHP > 0) plantCharge(av);
+      break;
     case 'tow': {
       if (!av || !NET.inGame) return;
       const sp = G.speeders[m.i], a = G.atats[m.a];
@@ -514,11 +526,13 @@ function avatarRef(id) { return id < 0 ? null : id === NET.myId ? P : (NET.avata
 NET.applySnapshot = function (m) {
   const quiet = NET.firstSnap;      // beim späten Beitritt keine Explosionen für längst Zerstörtes
   NET.firstSnap = false;
-  if (G.genHP > 0 && m.gen <= 0 && !quiet) {
-    _v1.set(WORLD.gen.x, WORLD.gen.y + 8, WORLD.gen.z);
-    for (let i = 0; i < 6; i++) FX.explosion(_v2.set(_v1.x + rand(-10, 10), _v1.y + rand(-4, 6), _v1.z + rand(-10, 10)), 7);
-    SFX.boom(_v1, 4);
-  }
+  if (G.genHP > 0 && m.gen <= 0 && !quiet) genDestroyedFx();
+  // Ewok-Fallen: Host löst aus, Clients spielen die Bewegung ab
+  if (m.tr) G.traps.forEach((t, i) => {
+    const st = m.tr[i];
+    if (st === 1 && t.state === 0) { if (quiet) { t.state = 2; t.ang = 0.1; t.hitDone = true; } else t.trigger(null, true); }
+    else if (st === 0 && t.state === 2) t.state = 3;
+  });
   G.genHP = m.gen;
   const sol = (list, arr) => {
     for (let i = 0; i < list.length && i * 4 < arr.length; i++) {
@@ -604,6 +618,7 @@ NET.onClientMsg = function (m) {
       if (!NET.inGame || m.ex === NET.myId || !m.o || !m.v) break;
       throwGrenade(m.f === IMP ? IMP : REB, new THREE.Vector3(m.o[0], m.o[1], m.o[2]), new THREE.Vector3(m.v[0], m.v[1], m.v[2]), null, true);
       break;
+    case 'cg': if (NET.inGame) plantCharge(null, true); break;
     case 'die': if (NET.inGame) killPlayer(m.c || 'Getroffen'); break;
     case 'hit': G.hitMarker(P); break;
     case 'deny':

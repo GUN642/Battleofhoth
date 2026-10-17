@@ -35,13 +35,13 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 6
-VERSION_NAME = '1.5'
+VERSION_CODE = 7
+VERSION_NAME = '1.6'
 RELEASE_NOTES = [
-    'Waffenauswahl: Blastergewehr, Repetierblaster, Präzisionsgewehr und Thermaldetonator',
-    'Jede Waffe mit eigenem Modell, Sound, Feuerrate, Überhitzung und Zoom (Präzisionsgewehr mit starkem Zielfernrohr)',
-    'Thermaldetonatoren: 3 pro Leben, Bogenwurf mit Abprallen und Flächenwirkung gegen Soldaten – auch im Mehrspieler',
-    'Wechseln mit 1–4/Mausrad, Controller Y oder Steuerkreuz links/rechts, Antippen der Waffenleiste',
+    'Neue Karte Endor: Waldmond mit Mammutbäumen, Farnen und Lichtstrahlen – im Menü unter „Karte“ wählbar',
+    'Rebellen verteidigen den Bunkereingang, mit Han Solo, Chewbacca, R2-D2 und C-3PO',
+    'Ewoks kämpfen mit Speeren und lösen Baumstammfallen gegen die AT-STs aus (auch per Hand mit E)',
+    'Bunkergeschütze auf dem Dach, Imperium kann Sprengladungen am Bunkertor anbringen, auch im LAN-Mehrspieler',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

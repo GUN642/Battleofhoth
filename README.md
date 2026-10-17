@@ -56,6 +56,20 @@ Version 1.0 hatte noch keine Update-Prüfung und muss einmalig von Hand durch 1.
   Schildgenerator können nur die Läufer beschädigen. Sieg: Schildgenerator zerstört oder alle Verteidiger
   ausgeschaltet. Niederlage: Angriffsstreitmacht vernichtet oder keine Leben mehr.
 
+### Karte Endor
+Im Menü unter **Karte** lässt sich statt Hoth der Waldmond **Endor** wählen (gilt auch im Mehrspieler, der Host bestimmt die Karte).
+
+- Riesige Mammutbäume, Farne, umgestürzte Stämme und Lichtstrahlen durch das Blätterdach. Baumstämme blockieren Sicht und Laserschüsse.
+- Die Rebellen halten eine Linie aus liegenden Stämmen vor dem **imperialen Bunker**. **Han Solo** und **Chewbacca** kämpfen mit,
+  **R2-D2** arbeitet am Schaltpult des Tors, **C-3PO** kommentiert das Geschehen.
+- **Ewoks** (einstellbar 0–40) kämpfen im Wald mit Speeren. Sturmtruppen sehen sie im Farn erst aus der Nähe.
+- **AT-STs** rücken über vier Waldwege an. Über den Wegen hängen **Ewok-Baumstammfallen**: Solange Ewoks in der Schlacht sind,
+  lösen sie diese aus, wenn ein AT-ST darunter läuft. Als Rebell kannst du jede Falle auch selbst mit E auslösen.
+  Nach etwa 45 Sekunden ist eine Falle wieder gespannt.
+- Zwei **Bunkergeschütze** auf dem Dach (vom Tor aus mit E bemannen) sind die zweite Waffe gegen AT-STs.
+- **Imperium:** Ziel ist das Bunkertor. AT-STs beschießen es, Sturmtruppen sprengen es auf, sobald die Linie fällt,
+  und als Spieler kannst du am Tor eine **Sprengladung** anbringen (eine pro Leben). Sturmtruppen erhalten eine Welle Verstärkung.
+
 ### Waffen
 Zu Fuß stehen vier Waffen zur Wahl (Rebellen / Imperium jeweils mit eigenem Modell). Die Waffenleiste unten
 zeigt die aktive Waffe und die verbleibenden Thermaldetonatoren.
@@ -70,8 +84,8 @@ zeigt die aktive Waffe und die verbleibenden Thermaldetonatoren.
 Jede Blasterwaffe hat ihre eigene Hitzeanzeige; beim Wechseln kühlen die anderen ab. Läufer bleiben auch gegen
 Detonatoren immun – dafür braucht es weiterhin Türme oder Schneegleiter.
 
-Im Hauptmenü lässt sich einstellen: Anzahl der Rebellen (dein Team), Sturmtruppen, AT-ST, AT-AT,
-KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlichkeit und Grafik.
+Im Hauptmenü lässt sich einstellen: Karte (Hoth oder Endor), Anzahl der Rebellen (dein Team), Ewoks (Endor), Sturmtruppen, AT-ST,
+AT-AT und KI-Schneegleiter (Hoth), Geschütztürme bzw. Bunkergeschütze, deine Leben, Schwierigkeit, Blick-Empfindlichkeit und Grafik.
 
 ### Steuerung
 | | Touch | PC |
@@ -130,7 +144,8 @@ Der Mehrspieler funktioniert nur in der Android-App, nicht in der Browser-Versio
   Zum Testen am PC `web/index.html` direkt im Browser öffnen.
   - `world.js` Gelände, Texturen, Materialien, Himmel, Effekte · `audio.js` Sound-Synthese ·
     `units.js` Einheiten, KI, Laser · `post.js` Bloom/Tonemapping · `game.js` Spieler, HUD, Menü ·
-    `nav.js` Controller & Menü-Navigation · `net.js` LAN-Mehrspieler · `update.js` Update-Dialog
+    `nav.js` Controller & Menü-Navigation · `net.js` LAN-Mehrspieler · `endor.js` Karte Endor (Wald, Bunker, Helden, Ewoks, Fallen) ·
+    `update.js` Update-Dialog
   - Mehrspieler im Browser testen: `web/` über einen lokalen Webserver öffnen und in zwei Fenstern
     `index.html?net=test` aufrufen (Transport über BroadcastChannel)
 - `android/`: Android-App (Vollbild-WebView, lädt `web/` aus den Assets, Update-Prüfung, Controller-Weiterleitung,

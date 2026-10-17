@@ -145,6 +145,30 @@ const SFX = {
         addChirp(o, sr, 0.016, 0.3, 3900, 0.04, 0.04, 0.1);
         addNoise(o, sr, 0, 0.45, 0.004, 0.85);
       }, 1.7, 300)),
+      // R2-D2: Folgen schneller Pfeiftöne mit Gleitern
+      r2: variants(4, i => mk(0.9, o => {
+        let t = 0;
+        const n = 4 + i * 2;
+        for (let k = 0; k < n; k++) {
+          const d = rand(0.04, 0.12), f0 = rand(1400, 3600), f1 = f0 * rand(0.6, 1.6);
+          addSweep(o, sr, t, 0.45, f0, f1, d, d * 0.3);
+          t += d + rand(0, 0.03);
+          if (t > 0.8) break;
+        }
+      }, 1.2, 400)),
+      // Ewok-Kriegshorn: tiefer, rauer Hornton mit Vibrato
+      horn: [mk(2.4, o => {
+        const n = o.length;
+        let ph = 0;
+        for (let i = 0; i < n; i++) {
+          const t = i / sr, env = Math.min(1, t / 0.25) * Math.min(1, (2.4 - t) / 0.6);
+          const f = 118 + Math.sin(t * 5.5) * 2.5 + (t < 0.3 ? (0.3 - t) * 60 : 0);
+          ph += f / sr;
+          const x = ph % 1;
+          o[i] += ((x < 0.5 ? x * 4 - 1 : 3 - x * 4) * 0.55 + (x * 2 - 1) * 0.25 + Math.sin(ph * TAU * 2) * 0.15) * env * 0.5;
+        }
+        addNoise(o, sr, 0, 0.08, 2.2, 0.2);
+      }, 2.2, 60)],
       toss: [mk(0.3, o => { addNoise(o, sr, 0, 0.6, 0.09, 0.15); addSweep(o, sr, 0.02, 0.2, 900, 1500, 0.15, 0.06); })],
       boom: variants(3, () => mk(2.6, o => {
         addNoise(o, sr, 0, 1, 0.55, 0.035);
@@ -199,6 +223,8 @@ const SFX = {
     this.play(pick(set), p, vol, rand(0.94, 1.06), kind === 2);
   },
   boom(p, size) { if (this.ctx) this.play(pick(this.bufs.boom), p, Math.min(1.6, 0.5 + size * 0.4), rand(0.85, 1.1) * (size > 2.5 ? 0.8 : 1), true); },
+  r2(p) { if (this.ctx) this.play(pick(this.bufs.r2), p, 0.5, rand(0.95, 1.08)); },
+  horn(p) { if (this.ctx) this.play(this.bufs.horn[0], p, 2.2, rand(0.96, 1.04), true); },
   toss(p) { if (this.ctx) this.play(this.bufs.toss[0], p, 0.4, rand(0.9, 1.1)); },
   thump(p) { if (this.ctx) this.play(this.bufs.step[0], p, 1.6, rand(0.95, 1.05), true); },
   impact(p) { if (this.ctx && this.budget >= 1) { this.budget -= 0.5; this.play(pick(this.bufs.impact), p, 0.25, rand(0.8, 1.2)); } },

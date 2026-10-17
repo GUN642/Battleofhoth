@@ -21,6 +21,8 @@ const G = {
   netNadeHook: null,      // dasselbe für Thermaldetonatoren
   visualOnly: false,      // Client: Spiellogik läuft beim Host, hier nur Darstellung
   creditKill: (pl) => { pl.kills++; },
+  onSpecialDown: () => {},  // Held oder Ewok gefallen (Meldung)
+  traps: [], charges: [], netChargeHook: null,
   onRemoteDown: () => {}, onRemoteEject: () => {},
 };
 // Seite des lokalen Spielers (Rebellen oder Imperium)
@@ -38,6 +40,7 @@ const KIND = [
   { speed: 230, len: 2.8, w: 0.12, splash: 1.8, atst: 1, atat: 0.25, struct: 0, veh: 0, life: 2 },  // 4 Schneegleiter
   { speed: 320, len: 3.4, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 2.2 },     // 5 Präzisionsgewehr
   { speed: 135, len: 1.3, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.8 },     // 6 Repetierblaster
+  { speed: 34, len: 1.5, w: 0.045, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.3 },     // 7 Ewok-Speer
 ];
 
 // ---------------------------------------------------------------- Thermaldetonatoren
@@ -88,6 +91,7 @@ function updateGrenades(dt) {
 // ---------------------------------------------------------------- Soldaten-Modelle
 function soldierGeos(f) {
   const H = Math.PI / 2;
+  if (MAP.id === 'endor') return f === REB ? endorRebelGeos() : stormtrooperGeos();
   if (f === REB) {
     const coat = 0xcfc3a6, coat2 = 0xb9ad90, pants = 0x8a8170, skin = 0xd9a37c, helm = 0xe8e4da, dark = 0x2a2a2a;
     return {
@@ -132,8 +136,56 @@ function soldierGeos(f) {
   };
 }
 
+// Endor: Rebellen-Kommando mit Tarnponcho und Helm mit Tarnbezug
+function endorRebelGeos() {
+  const H = Math.PI / 2, pon = 0x5d6638, pon2 = 0x48502b, pants = 0x6b5c42, skin = 0xd9a37c, helm = 0x535b34, dark = 0x2a2a2a;
+  return {
+    body: mergeGeos([
+      gCap(0.2, 0.32, 0, 1.24, 0, 0x6f6450, 0, 0, 1.25, 0.85),           // Oberkörper
+      gCyl(0.2, 0.36, 0.62, 8, 0, 1.17, 0, pon),                          // Poncho
+      gCyl(0.3, 0.37, 0.1, 8, 0, 0.83, 0, pon2),                          // Ponchosaum
+      gCyl(0.26, 0.26, 0.06, 10, 0, 1.0, 0, 0x3a2c1e),                    // Gürtel
+      gSph(0.12, 0, 1.66, 0.01, skin, 1, 1.1, 1),                          // Kopf
+      gSph(0.15, 0, 1.7, -0.01, helm, 1, 0.9, 1.08, 14, true),             // Helm mit Tarnbezug
+      gBox(0.06, 0.03, 0.2, 0.08, 1.78, -0.02, 0x3b4224, 0, 0.6), gBox(0.06, 0.03, 0.2, -0.07, 1.79, 0.02, 0x6a7240, 0, -0.4),
+      gBox(0.34, 0.36, 0.18, 0, 1.3, -0.24, 0x4a4630),                     // Rucksack
+      gCap(0.065, 0.28, -0.2, 1.32, 0.16, pon, H), gCap(0.065, 0.26, 0.2, 1.32, 0.15, pon, H),
+      gSph(0.055, -0.1, 1.32, 0.36, 0x4a3a2a), gSph(0.055, 0.12, 1.31, 0.33, 0x4a3a2a),
+      gBox(0.06, 0.1, 0.62, 0.03, 1.36, 0.42, dark), gCyl(0.025, 0.025, 0.35, 6, 0.03, 1.38, 0.88, 0x1a1a1a, H),
+    ]),
+    leg: mergeGeos([gCap(0.085, 0.58, 0, -0.38, 0, pants), gBox(0.2, 0.17, 0.3, 0, -0.81, 0.04, 0x2e241a), gBox(0.21, 0.05, 0.31, 0, -0.88, 0.04, 0x1f1812)]),
+  };
+}
+// Sturmtruppler (ohne Schneetruppen-Rock und -Kapuze)
+function stormtrooperGeos() {
+  const H = Math.PI / 2, w = 0xf2f2f2, w2 = 0xdedfe2, dark = 0x1c1c1e;
+  return {
+    body: mergeGeos([
+      gCap(0.2, 0.34, 0, 1.24, 0, w, 0, 0, 1.3, 0.85),
+      gBox(0.36, 0.28, 0.12, 0, 1.3, 0.13, w2), gBox(0.1, 0.12, 0.04, -0.07, 1.33, 0.2, dark),
+      gBox(0.3, 0.05, 0.25, 0, 1.1, 0.02, dark),                           // Bauchpartie
+      gCyl(0.24, 0.26, 0.2, 12, 0, 0.92, 0, w),                            // Becken
+      gCyl(0.262, 0.262, 0.07, 12, 0, 1.0, 0, w2), gBox(0.08, 0.06, 0.04, 0.12, 1.0, 0.25, 0x9a9aa0),
+      gSph(0.16, 0, 1.69, 0, w, 1, 1.02, 1.08, 16),                        // Helm
+      gBox(0.09, 0.05, 0.05, -0.055, 1.71, 0.15, dark), gBox(0.09, 0.05, 0.05, 0.055, 1.71, 0.15, dark),   // Augengläser
+      gBox(0.12, 0.05, 0.05, 0, 1.6, 0.16, 0x404046),                      // Mundgitter
+      gCyl(0.17, 0.2, 0.08, 14, 0, 1.56, 0, w2),
+      gBox(0.32, 0.36, 0.14, 0, 1.3, -0.2, w2),
+      gCap(0.065, 0.28, -0.2, 1.32, 0.16, w, H), gCap(0.065, 0.26, 0.2, 1.32, 0.15, w, H),
+      gSph(0.055, -0.1, 1.32, 0.36, dark), gSph(0.055, 0.12, 1.31, 0.33, dark),
+      gBox(0.06, 0.1, 0.55, 0.03, 1.36, 0.4, dark), gCyl(0.035, 0.035, 0.12, 8, 0.03, 1.36, 0.72, 0x111111, H),
+    ]),
+    leg: mergeGeos([gCap(0.09, 0.56, 0, -0.38, 0, w), gBox(0.2, 0.18, 0.29, 0, -0.81, 0.04, 0xe8e8ea), gBox(0.21, 0.05, 0.3, 0, -0.88, 0.04, 0x55565c)]),
+  };
+}
+
+const SOLDIER_RENDERERS = [];
+// Nach einem Kartenwechsel: Soldatenmodelle der neuen Karte verwenden
+function restyleSoldiers() { for (const r of SOLDIER_RENDERERS) r.restyle(); }
+
 class SoldierRenderer {
   constructor(f, max) {
+    this.f = f; SOLDIER_RENDERERS.push(this);
     const g = soldierGeos(f);
     this.body = new THREE.InstancedMesh(g.body, MAT.soldier, max);
     this.legL = new THREE.InstancedMesh(g.leg, MAT.soldier, max);
@@ -145,10 +197,17 @@ class SoldierRenderer {
     this.max = max;
   }
   addTo(scene) { scene.add(this.body); scene.add(this.legL); scene.add(this.legR); }
+  restyle() {
+    const g = soldierGeos(this.f);
+    this.body.geometry.dispose(); this.legL.geometry.dispose();
+    this.body.geometry = g.body; this.legL.geometry = this.legR.geometry = g.leg;
+  }
   update(list) {
-    const n = Math.min(list.length, this.max);
-    for (let i = 0; i < n; i++) {
-      const s = list[i];
+    let n = 0;
+    for (let j = 0; j < list.length && n < this.max; j++) {
+      const s = list[j];
+      if (s.special) continue;            // Helden und Ewoks haben eigene Modelle
+      const i = n++;
       _e.set(-s.fall * 1.45, s.yaw, 0, 'YXZ'); _q.setFromEuler(_e);
       _m.compose(s.pos, _q, _one);
       this.body.setMatrixAt(i, _m);
@@ -177,15 +236,18 @@ class Soldier {
     this.goal = new V3(); this.state = 'hold'; this.stateT = rand(0.5, 4);
     this.slotX = x; this.slotD = z - trenchZ(x);
     this.holdDist = rand(22, 65);
+    this.r = 0.36; this.h = 1.85; this.ah = 1.65;   // Trefferzylinder und Zielhöhe
+    this.special = null;                           // 'hero' | 'ewok' (eigene Modelle und KI)
   }
 }
 
 function aimPoint(t, out) {
   switch (t.type) {
-    case 'sol': return out.set(t.pos.x, t.pos.y + rand(1.1, 1.65), t.pos.z);
+    case 'sol': return out.set(t.pos.x, t.pos.y + t.ah * rand(0.67, 1), t.pos.z);
     case 'player': return out.set(t.pos.x, t.pos.y + rand(1.1, 1.6), t.pos.z);
-    case 'turret': return out.set(t.pos.x, t.pos.y + rand(2, 4.5), t.pos.z);
-    case 'gen': return out.set(WORLD.gen.x + rand(-6, 6), WORLD.gen.y + rand(3, 9), WORLD.gen.z);
+    case 'turret': return out.set(t.pos.x, t.pos.y + t.hy * rand(0.5, 1.15) + (t.roof ? 0.8 : 0), t.pos.z);
+    case 'gen': return MAP.id === 'endor' ? out.set(WORLD.gen.x + rand(-9, 9), WORLD.gen.y + rand(1, 5), WORLD.gen.z - 0.5)
+      : out.set(WORLD.gen.x + rand(-6, 6), WORLD.gen.y + rand(3, 9), WORLD.gen.z);
     case 'speeder': return out.copy(t.pos);
     case 'atst': return out.set(t.pos.x, t.pos.y + 6.8, t.pos.z);
     case 'atat': return out.set(t.pos.x, t.pos.y + 16, t.pos.z);
@@ -203,18 +265,24 @@ function targetAlive(t) {
 // Gefallener Rebell kehrt (solange er Leben übrig hat) in den Graben zurück
 function respawnSoldier(s) {
   s.livesLeft--;
+  if (s.f === IMP) {                   // imperiale Verstärkung rückt von hinten nach
+    s.pos.set(rand(-130, 130), 0, rand(-250, -200)); s.pos.y = heightAt(s.pos.x, s.pos.z);
+    s.alive = true; s.fall = 0; s.deadT = 0; s.target = null; s.moving = false; s.state = 'hold'; s.stateT = rand(0.5, 2); s.yaw = 0;
+    return;
+  }
   const x = clamp(s.slotX + rand(-8, 8), -TR.len + 3, TR.len - 3);
   s.slotX = x; s.pos.set(x, 0, trenchZ(x) + s.slotD); s.pos.y = heightAt(s.pos.x, s.pos.z);
   s.alive = true; s.fall = 0; s.deadT = 0; s.target = null; s.moving = false;
   s.state = 'hold'; s.stateT = rand(1, 3); s.fireCd = rand(1.5, 3); s.yaw = Math.PI;
 }
 
-function soldierTarget(s) {
-  const range2 = 175 * 175;
+function soldierTarget(s, range = 175) {
+  const range2 = range * range;
   const list = s.f === REB ? G.imps : G.rebels;
   let b1 = null, b2 = null, b3 = null, d1 = range2, d2 = range2, d3 = range2;
   const consider = (t) => {
     const dx = t.pos.x - s.pos.x, dz = t.pos.z - s.pos.z, d = dx * dx + dz * dz;
+    if (t.special === 'ewok' && d > 55 * 55) return;     // Ewoks sind im Farn kaum zu sehen
     if (d < d1) { b3 = b2; d3 = d2; b2 = b1; d2 = d1; b1 = t; d1 = d; }
     else if (d < d2) { b3 = b2; d3 = d2; b2 = t; d2 = d; }
     else if (d < d3) { b3 = t; d3 = d; }
@@ -230,9 +298,11 @@ function soldierTarget(s) {
   return null;
 }
 
-function rebelsHoldTrench() { return G.rebels.some(r => r.alive || r.livesLeft > 0) || G.players.some(p => p.faction === REB && (p.alive || p.lives > 0)); }
+// Ewoks kämpfen im Wald, die Linie halten nur Rebellen und Helden
+function rebelsHoldTrench() { return G.rebels.some(r => r.special !== 'ewok' && (r.alive || r.livesLeft > 0)) || G.players.some(p => p.faction === REB && (p.alive || p.lives > 0)); }
 
 function updateSoldier(s, dt) {
+  if (s.special === 'ewok') { updateEwok(s, dt); return; }
   if (!s.alive) {
     if (s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
     s.deadT += dt;
@@ -245,6 +315,7 @@ function updateSoldier(s, dt) {
   s.moving = false;
   s.stateT -= dt;
   if (s.f === IMP) {
+    if (MAP.id === 'endor') s.holdDist = Math.max(8, s.holdDist - dt * 0.15);   // im Wald rücken sie mit der Zeit immer näher
     if (s.state === 'advance') {
       const dx = s.goal.x - s.pos.x, dz = s.goal.z - s.pos.z, d = Math.hypot(dx, dz);
       if (d < 0.5 || s.stateT <= 0) { s.state = 'hold'; s.stateT = s.target ? rand(2.5, 6) : rand(0.5, 2); }
@@ -270,6 +341,7 @@ function updateSoldier(s, dt) {
       s.goal.x = clamp(s.slotX + rand(-5, 5), -TR.len + 3, TR.len - 3);
     }
   }
+  if (OBST.n) pushOutWorld(s.pos, 0.4);
   s.pos.y = heightAt(s.pos.x, s.pos.z);
   if (s.moving) s.phase += dt * 9;
   if (s.target) {
@@ -278,11 +350,11 @@ function updateSoldier(s, dt) {
     s.fireCd -= dt;
     if (s.fireCd <= 0 && (!s.moving || Math.random() < 0.3)) {
       const rate = s.f === IMP ? G.diff.rate : 1;
-      s.fireCd = rand(1.3, 2.9) / rate;
+      s.fireCd = rand(1.3, 2.9) / rate * (s.special === 'hero' ? 0.55 : 1);
       const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
       _v1.set(s.pos.x + sn * 0.8 + c * 0.04, s.pos.y + 1.36, s.pos.z + c * 0.8 - sn * 0.04);
       aimPoint(s.target, _v2);
-      fireBolt(0, s.f, _v1, _v2, s.f === IMP ? G.diff.spread : 0.034, s);
+      fireBolt(0, s.f, _v1, _v2, s.f === IMP ? G.diff.spread : s.special === 'hero' ? 0.018 : 0.034, s);
     }
   } else s.fireCd = Math.max(s.fireCd - dt, 0.3);
 }
@@ -307,6 +379,7 @@ function killSoldier(s, killer) {
   s.alive = false; s.target = null; s.moving = false;
   FX.sparks(_v3.set(s.pos.x, s.pos.y + 1.3, s.pos.z), 6, 1, 0.5, 0.2);
   if (isHuman(killer)) G.onKill(killer, s);
+  if (s.special) G.onSpecialDown(s);
 }
 
 // ---------------------------------------------------------------- Laserschüsse
@@ -328,6 +401,7 @@ function fireBolt(kind, f, from, to, spread, owner, fromNet) {
   b.f = f; b.kind = kind; b.life = K.life; b.owner = owner;
   G.bolts.push(b);
   if (G.netHook && !fromNet) G.netHook(b);
+  if (kind === 7) { SFX.toss(from); return b; }
   FX.muzzle(from, f, kind > 0);
   SFX.shot(from, kind, f);
   if (kind === 2 || kind === 3) FX.flash(from, f === REB ? 1 : 0.4, f === REB ? 0.35 : 1, 0.25, 4, 0.12);
@@ -393,7 +467,7 @@ function updateBolts(dt) {
         if (!s.alive) continue;
         const p = s.pos;
         if (p.x < minx || p.x > maxx || p.z < minz || p.z > maxz) continue;
-        const t = segCyl(x0, y0, z0, dx, dy, dz, p.x, p.y, p.z, 0.36, 1.85);
+        const t = segCyl(x0, y0, z0, dx, dy, dz, p.x, p.y, p.z, s.r, s.h);
         if (t >= 0 && t < bestT) { bestT = t; hitObj = s; hitType = 'sol'; }
       }
     }
@@ -407,7 +481,7 @@ function updateBolts(dt) {
     if (b.f === IMP) {
       for (const tu of G.turrets) {
         if (!tu.alive) continue;
-        const t = segCyl(x0, y0, z0, dx, dy, dz, tu.pos.x, tu.pos.y, tu.pos.z, 1.9, 5);
+        const t = segCyl(x0, y0, z0, dx, dy, dz, tu.pos.x, tu.pos.y, tu.pos.z, 1.9, tu.hy + 1.2);
         if (t >= 0 && t < bestT) { bestT = t; hitObj = tu; hitType = 'turret'; }
       }
       for (const sp of G.speeders) {
@@ -415,9 +489,8 @@ function updateBolts(dt) {
         const t = segSphere(x0, y0, z0, dx, dy, dz, sp.pos, 2.6);
         if (t >= 0 && t < bestT) { bestT = t; hitObj = sp; hitType = 'speeder'; }
       }
-      if (G.genHP > 0 && b.kind > 0) {
-        _v1.set(WORLD.gen.x, WORLD.gen.y, WORLD.gen.z);
-        const t = segSphere(x0, y0, z0, dx, dy, dz, _v1, 14.5);
+      if (G.genHP > 0 && b.kind > 0 && b.kind !== 7) {
+        const t = genSeg(x0, y0, z0, dx, dy, dz);
         if (t >= 0 && t < bestT) { bestT = t; hitObj = 'gen'; hitType = 'gen'; }
       }
     } else {
@@ -430,6 +503,8 @@ function updateBolts(dt) {
         for (const sp of w.spheres) { const t = segSphere(x0, y0, z0, dx, dy, dz, sp, sp.r); if (t >= 0 && t < bestT) { bestT = t; hitObj = w; hitType = 'atat'; } }
       }
     }
+    // Bäume, Baumstämme und Bunker (Endor)
+    if (OBST.n) { const t = OBST.seg(x0, y0, z0, dx, dy, dz); if (t < bestT) { bestT = t; hitType = 'ground'; hitObj = null; } }
     // Gelände
     const len = Math.sqrt(dx * dx + dy * dy + dz * dz), steps = Math.max(1, Math.ceil(len / 1.2));
     for (let k = 1; k <= steps; k++) {
@@ -448,7 +523,9 @@ function updateBolts(dt) {
 
 function onBoltHit(b, type, obj, p) {
   const K = KIND[b.kind], byPlayer = b.owner === G.player, byHuman = isHuman(b.owner);
+  if (b.kind === 7 && type !== 'sol' && type !== 'player') { FX.snowPuff(p, false); if (G.visualOnly) return; }
   if (G.visualOnly) {             // Client: nur Effekte, Schaden berechnet der Host
+    if (b.kind === 7) return;
     if (K.splash > 0) { FX.explosion(p, K.splash * 0.6); SFX.boom(p, K.splash * 0.5); }
     else if (type === 'ground') { FX.impact(p, b.f); SFX.impact(p); }
     else FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
@@ -456,7 +533,7 @@ function onBoltHit(b, type, obj, p) {
   }
   switch (type) {
     case 'sol': killSoldier(obj, b.owner); if (byHuman) G.hitMarker(b.owner); break;
-    case 'player': G.onPlayerHit(obj, b.kind === 0 ? 'Blastertreffer' : 'Explosion'); break;
+    case 'player': G.onPlayerHit(obj, b.kind === 7 ? 'Ewok-Speer' : b.kind === 0 || b.kind > 4 ? 'Blastertreffer' : 'Explosion'); break;
     case 'turret': if (K.struct > 0) { obj.damage(K.struct, b.owner); if (byHuman) G.hitMarker(b.owner); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
     case 'speeder': if (K.veh > 0) { obj.damage(K.veh, b.owner); if (byHuman) G.hitMarker(b.owner); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
     case 'gen': if (byHuman) G.hitMarker(b.owner); damageGenerator(K.struct); break;
@@ -466,8 +543,9 @@ function onBoltHit(b, type, obj, p) {
       else { FX.sparks(p, 5, 1, 0.8, 0.4); armorMsg(byPlayer); }
       break;
     }
-    case 'ground': if (!K.splash) { FX.impact(p, b.f); SFX.impact(p); } break;
+    case 'ground': if (!K.splash && b.kind !== 7) { FX.impact(p, b.f); SFX.impact(p); } break;
   }
+  if (b.kind === 7) return;
   if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player' ? obj : null);
   else if (type !== 'ground') FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
 }
@@ -498,12 +576,18 @@ function explode(p, radius, f, owner, hitPlayer) {
 function damageGenerator(d) {
   if (G.genHP <= 0) return;
   G.genHP = Math.max(0, G.genHP - d);
-  G.msg('Der Schildgenerator wird beschossen!', 'gen');
-  if (G.genHP <= 0) {
+  G.msg(MAP.id === 'endor' ? 'Das Bunkertor wird angegriffen!' : 'Der Schildgenerator wird beschossen!', 'gen');
+  if (G.genHP <= 0) genDestroyedFx();
+}
+function genDestroyedFx() {
+  if (MAP.id === 'endor') {
+    _v1.set(WORLD.gen.x, WORLD.gen.y + 2.5, WORLD.gen.z - 1);
+    for (let i = 0; i < 6; i++) FX.explosion(_v2.set(_v1.x + rand(-9, 9), _v1.y + rand(-1, 3), _v1.z + rand(-2, 1)), 5);
+  } else {
     _v1.set(WORLD.gen.x, WORLD.gen.y + 8, WORLD.gen.z);
     for (let i = 0; i < 6; i++) FX.explosion(_v2.set(_v1.x + rand(-10, 10), _v1.y + rand(-4, 6), _v1.z + rand(-10, 10)), 7);
-    SFX.boom(_v1, 4);
   }
+  SFX.boom(_v1, 4);
 }
 
 // ---------------------------------------------------------------- AT-AT
@@ -657,8 +741,7 @@ class ATAT {
     const sp = speed * dt;
     this.pos.x = clamp(this.pos.x + Math.sin(this.yaw) * sp, -440, 440);
     this.pos.z = clamp(this.pos.z + Math.cos(this.yaw) * sp, -760, 240);
-    const gd = Math.hypot(this.pos.x - WORLD.gen.x, this.pos.z - WORLD.gen.z);
-    if (gd < 24) { this.pos.x = WORLD.gen.x + (this.pos.x - WORLD.gen.x) / gd * 24; this.pos.z = WORLD.gen.z + (this.pos.z - WORLD.gen.z) / gd * 24; }
+    pushOutWorld(this.pos, 10);
     this.pos.y = heightAt(this.pos.x, this.pos.z);
     this.phase += dt * 1.1 * speed / 2.1;
     const step = Math.floor(this.phase / (Math.PI / 2));
@@ -741,9 +824,12 @@ function atstGeos() {
 
 class ATST {
   constructor(x, z) {
-    this.type = 'atst'; this.alive = true; this.hp = 8;
+    this.type = 'atst'; this.alive = true; this.hp = MAP.id === 'endor' ? 12 : 8;
     this.pos = new V3(x, heightAt(x, z), z); this.yaw = 0; this.phase = rand(0, TAU);
     this.goal = new V3(x, 0, trenchZ(x) - rand(35, 60)); this.goalT = 0;
+    // Endor: jeder AT-ST rückt auf einem Waldweg an
+    this.lane = MAP.id === 'endor' ? ENDOR.lanes.reduce((a, l) => (Math.abs(l - x) < Math.abs(a - x) ? l : a), ENDOR.lanes[0]) : 0;
+    if (MAP.id === 'endor') this.goal.set(this.lane, 0, z + 30);
     this.fireCd = rand(2, 4); this.thinkCd = rand(0, 1); this.target = null; this.fallT = 0; this.smokeT = 0; this.fallDir = 1;
     this.pilot = null; this.ctrl = { fwd: 0, yaw: 0, pitch: 0, fire: false, aim: new V3() }; this.gunI = 0;
     const g = atstGeos();
@@ -788,7 +874,12 @@ class ATST {
     };
     for (const pl of G.players) if (pl.faction === REB && targetAlive(pl)) test(pl, 0.8);
     for (const t of G.turrets) if (t.alive) test(t, 0.7);
-    for (const r of G.rebels) if (r.alive && Math.abs(r.pos.x - this.pos.x) < 150) test(r, 1);
+    for (const r of G.rebels) if (r.alive && Math.abs(r.pos.x - this.pos.x) < 150 && (r.special !== 'ewok' || r.pos.distanceTo(this.pos) < 55)) test(r, 1);
+    // Endor: in Reichweite auch auf das Bunkertor feuern (immer, sobald die Verteidiger gefallen sind)
+    if (MAP.id === 'endor' && G.genHP > 0) {
+      const dg = Math.hypot(WORLD.gen.x - this.pos.x, WORLD.gen.z - this.pos.z);
+      if (dg < 95 && (!best || !rebelsHoldTrench() || Math.random() < 0.3)) best = { type: 'gen', pos: WORLD.gen };
+    }
     this.target = best;
   }
   update(dt) {
@@ -813,7 +904,8 @@ class ATST {
     if (d < 2 && this.goalT <= 0) {
       this.goalT = rand(5, 10);
       const front = rebelsHoldTrench() ? trenchZ(this.pos.x) - rand(30, 55) : WORLD.gen.z - 40;
-      this.goal.set(clamp(this.pos.x + rand(-25, 25), -TR.len, TR.len), 0, front);
+      if (MAP.id === 'endor' && this.pos.z < front - 25) { this.goal.set(this.lane + rand(-3, 3), 0, Math.min(front, this.pos.z + rand(25, 40))); this.goalT = 0; }
+      else this.goal.set(clamp(this.pos.x + rand(-25, 25), -TR.len, TR.len), 0, front);
       dx = this.goal.x - this.pos.x; dz = this.goal.z - this.pos.z; d = Math.hypot(dx, dz);
     }
     let want = this.target ? Math.atan2(this.target.pos.x - this.pos.x, this.target.pos.z - this.pos.z) : this.yaw;
@@ -822,6 +914,7 @@ class ATST {
       if (!this.target) want = mv;
       const sp = 2.6 * dt;
       this.pos.x += dx / d * sp; this.pos.z += dz / d * sp;
+      if (pushOutWorld(this.pos, 2.4)) this.goalT = Math.min(this.goalT, 3);
       this.pos.y = heightAt(this.pos.x, this.pos.z);
       this.phase += dt * 3.2;
     }
@@ -878,8 +971,7 @@ class ATST {
     if (moving) {
       this.pos.x = clamp(this.pos.x + Math.sin(this.yaw) * sp * dt, -440, 440);
       this.pos.z = clamp(this.pos.z + Math.cos(this.yaw) * sp * dt, -760, 240);
-      const gd = Math.hypot(this.pos.x - WORLD.gen.x, this.pos.z - WORLD.gen.z);
-      if (gd < 17) { this.pos.x = WORLD.gen.x + (this.pos.x - WORLD.gen.x) / gd * 17; this.pos.z = WORLD.gen.z + (this.pos.z - WORLD.gen.z) / gd * 17; }
+      pushOutWorld(this.pos, MAP.id === 'hoth' ? 3 : 2.4);
       this.pos.y = heightAt(this.pos.x, this.pos.z);
       this.phase += dt * 3.2 * sp / 2.6;
     }
@@ -914,15 +1006,18 @@ function turretGeos() {
   return TUR_GEO;
 }
 class Turret {
-  constructor(x, z) {
+  // opts.roof: Geschütz auf dem Bunkerdach (Endor), ohne Turmsockel
+  constructor(x, z, opts) {
     this.type = 'turret'; this.alive = true; this.maxHp = 10; this.hp = this.maxHp;
-    this.pos = new V3(x, heightAt(x, z), z);
+    this.roof = !!(opts && opts.roof); this.hy = this.roof ? 0.7 : 3.9;
+    this.pos = new V3(x, this.roof ? opts.y : heightAt(x, z), z);
     this.aimYaw = Math.PI; this.aimPitch = 0; this.fireCd = rand(1, 3); this.thinkCd = rand(0, 1); this.target = null;
     this.manned = false; this.smokeT = 0; this.gun = 0;
     const g = turretGeos();
     this.root = new THREE.Group(); this.root.position.copy(this.pos);
-    this.root.add(new THREE.Mesh(g.base, MAT.building));
-    this.head = new THREE.Group(); this.head.position.y = 3.9; this.head.add(new THREE.Mesh(g.head, MAT.building));
+    if (!this.roof) this.root.add(new THREE.Mesh(g.base, MAT.building));
+    else { this.root.add(vcMesh([gCyl(2.0, 2.3, 0.7, 20, 0, 0.35, 0, 0x6c726c), gCyl(1.7, 1.7, 0.1, 20, 0, 0.72, 0, 0x4a4f4a)], MAT.building)); this.aimYaw = Math.PI; }
+    this.head = new THREE.Group(); this.head.position.y = this.hy; this.head.add(new THREE.Mesh(g.head, MAT.building));
     this.barrel = new THREE.Group(); this.barrel.position.set(0, 1.35, 1.2); this.barrel.add(new THREE.Mesh(g.barrel, MAT.vehicle));
     this.head.add(this.barrel); this.root.add(this.head);
     G.dyn.add(shadowify(this.root));
@@ -932,11 +1027,11 @@ class Turret {
   muzzle(out) { this.gun ^= 1; return out.set(this.gun ? 0.35 : -0.35, 0, 3.1).applyMatrix4(this.barrel.matrixWorld); }
   damage(d, by) {
     if (!this.alive) return;
-    this.hp -= d; FX.sparks(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 5, 1, 0.6, 0.2);
+    this.hp -= d; FX.sparks(_v1.set(this.pos.x, this.pos.y + this.hy, this.pos.z), 5, 1, 0.6, 0.2);
     if (this.hp <= 0) {
       this.alive = false;
       if (isHuman(by)) G.creditKill(by);
-      FX.explosion(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 4); SFX.boom(this.pos, 2);
+      FX.explosion(_v1.set(this.pos.x, this.pos.y + this.hy, this.pos.z), 4); SFX.boom(this.pos, 2);
       this.head.visible = false; this.root.scale.y = 0.55;
       G.msg('Ein Geschützturm wurde zerstört!', 'turret');
       if (this.manned && this.mannedBy === G.player && G.player.mode === 'turret') G.player.exitTurret(true);
@@ -946,11 +1041,11 @@ class Turret {
   netDestroy() {
     if (!this.alive) return;
     this.alive = false;
-    FX.explosion(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 4); SFX.boom(this.pos, 2);
+    FX.explosion(_v1.set(this.pos.x, this.pos.y + this.hy, this.pos.z), 4); SFX.boom(this.pos, 2);
     this.head.visible = false; this.root.scale.y = 0.55;
   }
   pickTarget() {
-    _v1.set(this.pos.x, this.pos.y + 5, this.pos.z);
+    _v1.set(this.pos.x, this.pos.y + this.hy + 1.1, this.pos.z);
     let best = null, bd = 1e9;
     const consider = (t, maxd, bias) => {
       const d = t.pos.distanceTo(this.pos);
@@ -958,7 +1053,7 @@ class Turret {
       aimPoint(t, _v2); if (!lineOfSight(_v1, _v2)) return;
       bd = d * bias; best = t;
     };
-    for (const w of G.atsts) if (w.alive) consider(w, 200, 0.5);
+    for (const w of G.atsts) if (w.alive) consider(w, this.roof ? 125 : 200, 0.5);
     for (const w of G.atats) if (w.alive && !w.tangled) consider(w, 200, 0.7);
     for (const s of G.imps) if (s.alive && Math.abs(s.pos.x - this.pos.x) < 150) consider(s, 140, 1.2);
     for (const pl of G.players) if (pl.faction === IMP && targetAlive(pl)) consider(pl, 140, 1.1);
@@ -967,7 +1062,7 @@ class Turret {
   update(dt) {
     if (!this.alive) {
       this.smokeT -= dt;
-      if (this.smokeT <= 0) { this.smokeT = 0.3; FX.smokeColumn(_v1.set(this.pos.x, this.pos.y + 2.2, this.pos.z), 0.6); }
+      if (this.smokeT <= 0) { this.smokeT = 0.3; FX.smokeColumn(_v1.set(this.pos.x, this.pos.y + this.hy * 0.55, this.pos.z), 0.6); }
       return;
     }
     if (this.manned && this.mannedBy === G.player) { this.apply(); return; }
@@ -982,7 +1077,7 @@ class Turret {
     if (!this.target) return;
     aimPoint(this.target, _v2);
     const dx = _v2.x - this.pos.x, dz = _v2.z - this.pos.z;
-    const wantY = Math.atan2(dx, dz), wantP = Math.atan2(_v2.y - (this.pos.y + 5.1), Math.hypot(dx, dz));
+    const wantY = Math.atan2(dx, dz), wantP = Math.atan2(_v2.y - (this.pos.y + this.hy + 1.2), Math.hypot(dx, dz));
     const dy = angDiff(this.aimYaw, wantY);
     this.aimYaw += clamp(dy, -1.4 * dt, 1.4 * dt);
     this.aimPitch += clamp(wantP - this.aimPitch, -dt, dt);

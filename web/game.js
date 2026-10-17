@@ -5,18 +5,22 @@
 
 const $ = (id) => document.getElementById(id);
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-const MAX_REBELS = 60, MAX_TROOPERS = 150;
+const MAX_REBELS = 60, MAX_TROOPERS = 150, MAX_EWOKS = 40;
 
 // ---------------------------------------------------------------- Einstellungen
+//  map: Einstellung gilt nur auf dieser Karte (sonst ausgeblendet)
 const SETTINGS = [
-  { key: 'faction', group: 'Deine Seite', label: 'Du kämpfst für', min: 0, max: 1, def: 0, names: ['Rebellen', 'Imperium'], wide: true },
+  { key: 'map', group: 'Schlachtfeld', label: 'Karte', min: 0, max: 1, def: 0, names: ['Hoth', 'Endor'], wide: true },
+  { key: 'faction', label: 'Du kämpfst für', min: 0, max: 1, def: 0, names: ['Rebellen', 'Imperium'], wide: true },
   { key: 'rebels', group: 'Truppen', label: 'Rebellen', min: 0, max: MAX_REBELS, def: 20 },
   { key: 'rebLives', label: 'Leben pro Rebell (KI)', min: 1, max: 5, def: 3 },
+  { key: 'ewoks', label: 'Ewoks', min: 0, max: MAX_EWOKS, def: 18, map: 1 },
   { key: 'troopers', label: 'Sturmtruppen', min: 0, max: MAX_TROOPERS, def: 40 },
   { key: 'atst', label: 'AT-ST', min: 0, max: 10, def: 3 },
-  { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2 },
-  { key: 'aiSpeeders', label: 'Schneegleiter (KI)', min: 0, max: 8, def: 2 },
-  { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6 },
+  { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2, map: 0 },
+  { key: 'aiSpeeders', label: 'Schneegleiter (KI)', min: 0, max: 8, def: 2, map: 0 },
+  { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6, map: 0 },
+  { key: 'bunkerGuns', label: 'Geschütze auf dem Bunker', min: 0, max: 2, def: 2, map: 1 },
   { key: 'lives', group: 'Spiel', label: 'Deine Leben', min: 1, max: 10, def: 3 },
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
   { key: 'sens', label: 'Blick-Empfindlichkeit', min: 1, max: 10, def: 5 },
@@ -31,7 +35,9 @@ function saveCfg() { try { localStorage.setItem('hothCfg', JSON.stringify(CFG));
 function buildSettingsUI() {
   const root = $('settings');
   root.innerHTML = '';
+  const mapNo = CFG.map === 1 ? 1 : 0;
   for (const s of SETTINGS) {
+    if (s.map !== undefined && s.map !== mapNo) continue;
     if (s.group) { const g = document.createElement('div'); g.className = 'group'; g.textContent = s.group; root.append(g); }
     const div = document.createElement('div'); div.className = 'set' + (s.wide ? ' wide' : '');
     if (s.names) {          // Auswahl als Segment-Schalter
@@ -45,6 +51,7 @@ function buildSettingsUI() {
           CFG[s.key] = i; saveCfg();
           seg.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j === i));
           if (s.key === 'gfx') applyGfx();
+          if (s.key === 'map') onMapSetting();
         });
         seg.append(b);
       });
@@ -64,6 +71,7 @@ function buildSettingsUI() {
     lab.append(name, val);
     const inp = document.createElement('input');
     inp.type = 'range'; inp.min = s.min; inp.max = s.max; inp.step = 1; inp.value = clamp(+CFG[s.key], s.min, s.max);
+    if (+CFG[s.key] !== +inp.value) CFG[s.key] = +inp.value;
     const show = () => {
       CFG[s.key] = +inp.value; val.textContent = s.names ? s.names[CFG[s.key]] : CFG[s.key];
       inp.style.setProperty('--p', ((CFG[s.key] - s.min) / (s.max - s.min) * 100).toFixed(1) + '%');
@@ -105,17 +113,60 @@ scene.add(sun); scene.add(sun.target);
 
 buildTextures();
 buildMaterials();
-buildEnvironment(renderer, scene);
-buildHeightCache();
-scene.add(buildTerrainMesh());
-buildSky(scene);
-buildBaseProps(scene);
+setMap(CFG.map === 1 ? 'endor' : 'hoth');
 FX.init(scene);
 const snow = new SnowFall(scene, 900);
 G.scene = scene;
 G.dyn = new THREE.Group(); scene.add(G.dyn);
 const rebR = new SoldierRenderer(REB, MAX_REBELS), impR = new SoldierRenderer(IMP, MAX_TROOPERS);
 rebR.addTo(scene); impR.addTo(scene);
+const ewokR = new EwokRenderer(MAX_EWOKS);
+ewokR.addTo(scene);
+
+// ---------------------------------------------------------------- Karten laden (Hoth / Endor)
+const worldRoot = new THREE.Group(); scene.add(worldRoot);
+let loadedMap = null;
+function disposeTree(root) {
+  const keep = new Set([...Object.values(MAT_HI), ...Object.values(MAT_LO)]);
+  root.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material && !keep.has(o.material)) { if (o.material.map && !Object.values(TEX).includes(o.material.map)) o.material.map.dispose(); o.material.dispose(); }
+  });
+  root.clear();
+}
+function loadMap(id) {
+  id = id === 'endor' || id === 1 ? 'endor' : 'hoth';
+  if (loadedMap === id) return;
+  clearBattle();
+  disposeTree(worldRoot);
+  if (loadedMap !== null || MAP.id !== id) setMap(id);
+  loadedMap = id;
+  const L = MAP.look;
+  buildEnvironment(renderer, scene);
+  scene.background.copy(HORIZON); scene.fog.color.copy(HORIZON); scene.fog.near = L.fog[0]; scene.fog.far = L.fog[1];
+  sun.color.setRGB(...L.sunCol); sun.intensity = L.sunI;
+  hemi.color.setRGB(...L.hemiSky); hemi.groundColor.setRGB(...L.hemiGnd);
+  renderer.toneMappingExposure = L.exposure;
+  if (id === 'endor') { buildSky(worldRoot); buildEndor(worldRoot, CFG.gfx | 0); }
+  else { worldRoot.add(buildTerrainMesh()); buildSky(worldRoot); buildBaseProps(worldRoot); }
+  snow.setStyle(id === 'endor');
+  restyleSoldiers();
+  applyGfx();
+  updateMenuText();
+}
+// Menütexte passend zur Karte
+function updateMenuText() {
+  const e = MAP.id === 'endor';
+  document.querySelector('#menu .kicker').textContent = e ? 'Rebellen-Allianz · Endor' : 'Rebellen-Allianz · Echo Base';
+  document.querySelector('#menu h1').innerHTML = e ? 'Battle<br>of Endor' : 'Battle<br>of Hoth';
+  document.querySelector('#menu .sub').textContent = e
+    ? 'Auf dem Waldmond Endor verteidigen Rebellen, Han Solo, Chewbacca und die Ewoks den Bunkereingang gegen Sturmtruppen und AT-STs.'
+    : 'Die imperiale Armee landet auf Hoth. Verteidige als Rebell den Schützengraben – oder führe als Imperialer die AT-ATs gegen Echo Base.';
+}
+function onMapSetting() {
+  buildSettingsUI();
+  if (state === 'menu') startDemo();
+}
 const boltRed = new BoltRenderer(3.2, 0.06, 0.03, 500), boltGreen = new BoltRenderer(0.12, 3.0, 0.06, 500);
 boltRed.addTo(scene); boltGreen.addTo(scene);
 
@@ -139,7 +190,8 @@ function applyGfx() {
   }
   FX.setLights(gfx.lights);
   setMaterialQuality(scene, gfx.low);
-  hemi.intensity = gfx.low ? 0.75 : 0.15;
+  hemi.intensity = gfx.low ? 0.75 : MAP.look.hemi;
+  if (ENDOR.shafts) ENDOR.shafts.visible = !gfx.low && MAP.id === 'endor';
   onResize();
 }
 function onResize() {
@@ -235,13 +287,15 @@ camera.add(gun);
 const P = G.player = {
   type: 'player', faction: REB, mode: 'spectate', alive: false, pos: new V3(), yaw: 0, pitch: 0, vy: 0, onGround: true, walker: null,
   lives: 0, kills: 0, heat: 0, overheat: 0, fireCd: 0, respawnT: 0, turret: null, speeder: null,
-  weapon: 0, heats: [0, 0, 0, 0], overheats: [0, 0, 0, 0], nades: NADES_PER_LIFE, switchT: 0, spin: 0,
+  weapon: 0, heats: [0, 0, 0, 0], overheats: [0, 0, 0, 0], nades: NADES_PER_LIFE, switchT: 0, spin: 0, charges: 1,
   bob: 0, recoil: 0, god: 0, deathCause: '',
   exitTurret(destroyed) {
     const t = this.turret; if (!t) return;
     t.manned = false; t.mannedBy = null; this.turret = null; this.mode = 'foot';
     const back = trenchZ(t.pos.x) < t.pos.z ? 3 : -3;
-    this.pos.set(t.pos.x + 1, 0, t.pos.z + back); this.pos.y = heightAt(this.pos.x, this.pos.z);
+    if (t.roof) this.pos.set(t.pos.x * 0.5, 0, ENDOR.bunker.z - 2);          // vom Bunkerdach vor das Tor
+    else this.pos.set(t.pos.x + 1, 0, t.pos.z + back);
+    this.pos.y = heightAt(this.pos.x, this.pos.z);
     this.yaw = t.aimYaw - Math.PI; this.pitch = 0;
     if (destroyed) G.msg('Du wurdest aus dem zerstörten Turm geschleudert!', 'turret2');
   },
@@ -264,8 +318,9 @@ function spawnPlayer(first) {
     const free = G.atsts.concat(G.atats).filter(w => w.alive && !w.pilot && !w.tangled);
     const w = free.find(v => v.type === 'atst') || free[0];
     if (w) {
-      const side = (w.type === 'atat' ? 10 : 4.5) * (Math.random() < 0.5 ? 1 : -1);
-      P.pos.set(w.pos.x + Math.cos(w.yaw) * side, 0, w.pos.z - Math.sin(w.yaw) * side - 3);
+      const side = (w.type === 'atat' ? 9 : 3.3) * (Math.random() < 0.5 ? 1 : -1);
+      P.pos.set(w.pos.x + Math.cos(w.yaw) * side, 0, w.pos.z - Math.sin(w.yaw) * side - 1.5);
+      if (w.goal) { w.goal.copy(w.pos); w.goalT = 8; }          // Läufer wartet kurz auf seinen Piloten
     } else {
       const zs = G.imps.filter(s => s.alive).map(s => s.pos.z);
       P.pos.set(rand(-30, 30), 0, (zs.length ? Math.min(...zs) : -250) - 15);
@@ -278,7 +333,7 @@ function spawnPlayer(first) {
   }
   P.pos.y = heightAt(P.pos.x, P.pos.z);
   P.pitch = 0.03; P.vy = 0; P.mode = 'foot'; P.alive = true; P.heat = 0; P.overheat = 0;
-  P.heats.fill(0); P.overheats.fill(0); P.nades = NADES_PER_LIFE; P.switchT = 0;
+  P.heats.fill(0); P.overheats.fill(0); P.nades = NADES_PER_LIFE; P.switchT = 0; P.charges = 1;
   P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null; P.walker = null;
   input.zoomToggle = false;
   $('dead').classList.add('hidden');
@@ -314,6 +369,9 @@ G.onPlayerHit = (pl, cause) => {
   killPlayer(cause);
 };
 G.onKill = (pl) => { G.creditKill(pl); };
+G.onSpecialDown = (s) => {
+  if (s.special === 'hero') G.msg(s.name + ' ist gefallen!' + (s.livesLeft > 0 ? ' Gleich ist er zurück an der Linie.' : ''), 'hero' + s.heroKind);
+};
 G.onPilotDown = (w) => {
   if (P.walker === w) killPlayer(WALKER_NAME[w.type] + ' zerstört', camera.position);
   else if (w.pilot && w.pilot.remote) NET.remoteDie(w.pilot, WALKER_NAME[w.type] + ' zerstört');
@@ -439,6 +497,7 @@ function camForward(out) { const cp = Math.cos(P.pitch); return out.set(-Math.si
 function aimDistance(o, d, maxD) {
   let best = maxD;
   for (let t = 2; t < maxD; t += 2) if (heightAt(o.x + d.x * t, o.z + d.z * t) > o.y + d.y * t) { best = t; break; }
+  if (OBST.n) { const t = OBST.seg(o.x, o.y, o.z, d.x * best, d.y * best, d.z * best); if (t <= 1) best *= Math.max(t, 0.01); }
   const sphere = (c, r) => {
     _tmp.subVectors(c, o); const t = _tmp.dot(d); if (t <= 0 || t > best) return;
     if (_tmp.addScaledVector(d, -t).lengthSq() < r * r) best = t;
@@ -450,9 +509,9 @@ function aimDistance(o, d, maxD) {
       const t = _tmp.dot(d); if (t <= 0 || t > best) continue;
       if (_tmp.addScaledVector(d, -t).lengthSq() < 0.6) best = t;
     }
-    for (const tu of G.turrets) if (tu.alive) sphere(_tmp2.set(tu.pos.x, tu.pos.y + 3, tu.pos.z), 2.2);
+    for (const tu of G.turrets) if (tu.alive) sphere(_tmp2.set(tu.pos.x, tu.pos.y + tu.hy * 0.8, tu.pos.z), 2.2);
     for (const sp of G.speeders) if (sp.alive && sp.mode !== 'gone') sphere(sp.pos, 2.6);
-    if (G.genHP > 0) sphere(_tmp2.set(WORLD.gen.x, WORLD.gen.y, WORLD.gen.z), 14);
+    if (G.genHP > 0) { const t = genSeg(o.x, o.y, o.z, d.x * best, d.y * best, d.z * best); if (t >= 0) best *= t; }
     return best;
   }
   for (const s of G.imps) {
@@ -485,7 +544,7 @@ function nearestUsable() {
   for (const t of G.turrets) {
     if (!t.alive || t.manned) continue;
     const d = Math.hypot(t.pos.x - P.pos.x, t.pos.z - P.pos.z);
-    if (d < 4.5 && d < bd) { bd = d; best = t; }
+    if (d < (t.roof ? 8 : 4.5) && d < bd) { bd = d; best = t; }      // Bunkergeschütz: vom Boden vor dem Tor erreichbar
   }
   for (const s of G.speeders) {
     if (s.mode !== 'parked') continue;
@@ -590,8 +649,7 @@ function updatePlayer(dt) {
       const dx = P.pos.x - t.pos.x, dz = P.pos.z - t.pos.z, d = Math.hypot(dx, dz);
       if (d < 2.3 && d > 0.001) { P.pos.x = t.pos.x + dx / d * 2.3; P.pos.z = t.pos.z + dz / d * 2.3; }
     }
-    { const dx = P.pos.x - WORLD.gen.x, dz = P.pos.z - WORLD.gen.z, d = Math.hypot(dx, dz);
-      if (d < 15 && d > 0.001) { P.pos.x = WORLD.gen.x + dx / d * 15; P.pos.z = WORLD.gen.z + dz / d * 15; } }
+    pushOutWorld(P.pos, MAP.id === 'hoth' ? 1 : 0.4);
     P.pos.x = clamp(P.pos.x, -420, 420); P.pos.z = clamp(P.pos.z, -700, 250);
     const gh = heightAt(P.pos.x, P.pos.z);
     if (P.onGround && jump) { P.vy = 4.6; P.onGround = false; }
@@ -640,18 +698,20 @@ function updatePlayer(dt) {
       fireBolt(W.kind, P.faction, _tmp, _tmp2, lerp(W.hip, W.ads, z), P);
     }
     const u = nearestUsable();
+    if (!u) endorUse(prompts, use);
     if (u) {
-      prompts.push(u.type === 'turret' ? '[E] Geschützturm bemannen' : u.type === 'speeder' ? '[E] In den Schneegleiter steigen' : '[E] ' + WALKER_NAME[u.type] + ' steuern');
+      prompts.push(u.type === 'turret' ? (u.roof ? '[E] Bunkergeschütz bemannen' : '[E] Geschützturm bemannen') : u.type === 'speeder' ? '[E] In den Schneegleiter steigen' : '[E] ' + WALKER_NAME[u.type] + ' steuern');
       if (use) {
         if (u.type === 'atst' || u.type === 'atat') {
           P.mode = 'walker'; P.walker = u; u.pilot = P;
           P.yaw = u.yaw - Math.PI; P.pitch = 0;
           G.msg(u.type === 'atat' ? 'AT-AT übernommen! Feuere auf Geschütztürme und den Schildgenerator. Vorsicht vor Schleppkabeln!'
+            : MAP.id === 'endor' ? 'AT-ST übernommen! Zerstöre das Bunkertor – Vorsicht vor den Baumstammfallen der Ewoks über den Waldwegen!'
             : 'AT-ST übernommen! Räume den Schützengraben und zerstöre die Geschütztürme.', 'win');
         } else if (u.type === 'turret') {
           P.mode = 'turret'; P.turret = u; u.manned = true; u.mannedBy = P;
           P.yaw = u.aimYaw - Math.PI; P.pitch = clamp(u.aimPitch, -0.35, 0.6);
-          G.msg('Geschützturm bemannt – ziele auf die Läufer!', 'tin');
+          G.msg(u.roof ? 'Bunkergeschütz bemannt – nur Geschütze und Ewok-Fallen stoppen die AT-STs!' : 'Geschützturm bemannt – ziele auf die Läufer!', 'tin');
         } else {
           P.mode = 'speeder'; P.speeder = u; u.mode = 'player'; u.pilot = P; u.speed = 20; u.pitch = 0.35;
           P.yaw = u.yaw - Math.PI; P.pitch = 0.3;
@@ -665,7 +725,7 @@ function updatePlayer(dt) {
     t.aimYaw = P.yaw + Math.PI; t.aimPitch = P.pitch; t.apply();
     camForward(_fwd);
     // Gezoomt: Blick direkt über die Läufe
-    camera.position.set(t.pos.x, t.pos.y + lerp(7.4, 6.45, zoomT), t.pos.z).addScaledVector(_fwd, lerp(-6.5, 1.0, zoomT));
+    camera.position.set(t.pos.x, t.pos.y + t.hy + lerp(3.5, 2.55, zoomT), t.pos.z).addScaledVector(_fwd, lerp(-6.5, 1.0, zoomT));
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = false;
     if (firing && P.fireCd <= 0 && P.overheat <= 0) {
@@ -803,12 +863,17 @@ function updateHUD(dt) {
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.2;
-    const reb = G.rebels.filter(s => s.alive).length, imp = G.imps.filter(s => s.alive).length;
-    const res = G.rebels.reduce((a, s) => a + Math.max(0, s.livesLeft), 0);
+    const reb = G.rebels.filter(s => s.alive && s.special !== 'ewok').length, imp = G.imps.filter(s => s.alive).length;
+    const impRes = G.imps.reduce((a, s) => a + Math.max(0, s.livesLeft), 0);
+    const res = G.rebels.reduce((a, s) => a + (s.special === 'ewok' ? 0 : Math.max(0, s.livesLeft)), 0);
     const st = G.atsts.filter(s => s.alive).length, at = G.atats.filter(s => s.alive).length;
-    const own = P.faction === IMP ? 'imp' : 'reb', foe = P.faction === IMP ? 'reb' : 'imp';
-    $('stats').innerHTML = `<div class="chip ${own === 'reb' ? 'friend' : 'foe'}"><span>Rebellen</span><b>${reb}${res ? `<small>+${res}</small>` : ''}</b></div>` +
-      `<div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>Sturmtruppen</span><b>${imp}</b></div><div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>AT-ST</span><b>${st}</b></div><div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>AT-AT</span><b>${at}</b></div>`;
+    const rc = P.faction === IMP ? 'foe' : 'friend', ic = P.faction === IMP ? 'friend' : 'foe';
+    const chip = (c, name, val) => `<div class="chip ${c}"><span>${name}</span><b>${val}</b></div>`;
+    let html = chip(rc, 'Rebellen', reb + (res ? `<small>+${res}</small>` : ''));
+    if (MAP.id === 'endor') html += chip(rc, 'Ewoks', G.rebels.filter(s => s.alive && s.special === 'ewok').length);
+    html += chip(ic, 'Sturmtruppen', imp + (impRes ? `<small>+${impRes}</small>` : '')) + chip(ic, 'AT-ST', st);
+    if (MAP.id === 'hoth') html += chip(ic, 'AT-AT', at);
+    $('stats').innerHTML = html;
     $('lives').innerHTML = `<div class="chip"><span>Leben</span><b class="hearts">${'<i></i>'.repeat(Math.max(0, P.lives))}</b></div><div class="chip"><span>Abschüsse</span><b>${P.kills}</b></div>`;
     $('genFill').style.width = (100 * G.genHP / G.genMax).toFixed(1) + '%';
     $('genPct').textContent = Math.round(100 * G.genHP / G.genMax) + '%';
@@ -833,9 +898,10 @@ function drawRadar() {
     c.fillStyle = col;
     if (sq) c.fillRect(rx - r, ry - r, r * 2, r * 2); else { c.beginPath(); c.arc(rx, ry, r, 0, TAU); c.fill(); }
   };
-  dot(WORLD.gen.x, WORLD.gen.z, 5, imp ? '#ffcc33' : '#4fc3ff');
+  dot(WORLD.gen.x, WORLD.gen.z, 5, imp ? '#ffcc33' : '#4fc3ff', MAP.id === 'endor');
+  for (const t of G.traps) dot(t.x, t.z, 2.4, t.armed ? '#c08a4a' : 'rgba(192,138,74,0.35)', true);
   for (const t of G.turrets) if (t.alive) dot(t.pos.x, t.pos.z, 2.5, imp ? '#ff8a6a' : '#9ad0ff', true);
-  for (const s of G.rebels) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, imp ? foe : friend);
+  for (const s of G.rebels) if (s.alive) dot(s.pos.x, s.pos.z, s.special === 'ewok' ? 1.2 : s.special === 'hero' ? 2.2 : 1.6, imp ? foe : friend);
   for (const s of G.speeders) if (s.mode === 'ai' || s.mode === 'tow' || s.mode === 'parked') dot(s.pos.x, s.pos.z, 2.5, imp ? '#ff7a3a' : '#ffb340');
   for (const s of G.imps) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, imp ? friend : foe);
   for (const w of G.atsts) if (w.alive) dot(w.pos.x, w.pos.z, 3.5, imp ? '#5fe07a' : '#ff7a3a', true);
@@ -848,8 +914,13 @@ function drawRadar() {
 let state = 'menu', endTimer = 0, demo = true, menuT = 0, battleT = 0;
 
 function clearBattle() {
-  for (const ch of G.dyn.children.slice()) { if (ch.isLine) ch.geometry.dispose(); G.dyn.remove(ch); }
+  for (const ch of G.dyn.children.slice()) {
+    if (ch.isLine) ch.geometry.dispose();
+    if (ch.isSprite) { ch.material.map.dispose(); ch.material.dispose(); }
+    G.dyn.remove(ch);
+  }
   G.rebels = []; G.imps = []; G.atats = []; G.atsts = []; G.turrets = []; G.speeders = [];
+  G.traps = []; G.charges = []; G.droids = null;
   for (const b of G.bolts) boltPool.push(b);
   G.bolts.length = 0; G.grenades.length = 0; FX.clear(); G.time = 0;
 }
@@ -858,6 +929,7 @@ function setupBattle(cfg) {
   clearBattle();
   G.genMax = G.genHP = 150;
   G.diff = [{ spread: 0.06, rate: 0.75 }, { spread: 0.048, rate: 1 }, { spread: 0.028, rate: 1.3 }][cfg.diff | 0];
+  if (MAP.id === 'endor') { setupEndorBattle(cfg); return; }
   const nR = Math.min(cfg.rebels, MAX_REBELS);
   for (let i = 0; i < nR; i++) {
     let x = -TR.len + 8 + (i + 0.5) / nR * (2 * TR.len - 16) + rand(-2, 2);
@@ -885,6 +957,7 @@ function newGame(opts) {
   const mp = opts && opts.mp;
   const cfg = mp ? Object.assign({}, CFG, opts.cfg) : CFG;
   if (!mp && NET.active) NET.leave();
+  loadMap(cfg.map === 1 ? 'endor' : 'hoth');
   setupBattle(cfg);
   G.players = [P];
   P.faction = mp ? opts.faction : (CFG.faction === 1 ? IMP : REB);
@@ -901,15 +974,21 @@ function newGame(opts) {
   $('msgs').innerHTML = '';
   lastPrompt = '#'; lastWeaponKey = '#';
   SFX.init();
-  $('genName').textContent = P.faction === IMP ? 'Ziel: Schildgenerator' : 'Schildgenerator';
-  G.msg(P.faction === IMP ? 'Zerstört den Schildgenerator! Steig mit E in ein AT-ST oder AT-AT.'
+  const endor = MAP.id === 'endor';
+  $('genName').textContent = (P.faction === IMP ? 'Ziel: ' : '') + (endor ? 'Bunkertor' : 'Schildgenerator');
+  if (endor) G.msg(P.faction === IMP ? 'Zerstört das Bunkertor! Steig mit E in ein AT-ST oder bring eine Sprengladung am Tor an.'
+    : 'Das Imperium greift an! Haltet die Linie vor dem Bunker – die Ewoks kämpfen an eurer Seite!', 'start');
+  else G.msg(P.faction === IMP ? 'Zerstört den Schildgenerator! Steig mit E in ein AT-ST oder AT-AT.'
     : 'Das Imperium greift an! Halte den Graben und schütze den Schildgenerator!', 'start');
+  if (endor && cfg.ewoks > 0) setTimeout(() => { if (state === 'playing') SFX.horn(null); }, 1500);
   if (!IS_TOUCH && canvas.requestPointerLock) canvas.requestPointerLock();
 }
 
 function startDemo() {
   demo = true; G.players = [P];
-  setupBattle({ rebels: 24, rebLives: 2, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
+  loadMap(CFG.map === 1 ? 'endor' : 'hoth');
+  setupBattle(MAP.id === 'endor' ? { rebels: 16, rebLives: 2, troopers: 40, atst: 3, ewoks: 18, bunkerGuns: 2, diff: 1 }
+    : { rebels: 24, rebLives: 2, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
   P.mode = 'spectate'; P.alive = false; P.lives = 0; P.faction = REB; P.walker = null;
 }
 
@@ -970,19 +1049,27 @@ $('againBtn').addEventListener('click', () => { if (NET.mode === 'host') NET.sta
 $('menuBtn').addEventListener('click', () => showMenu({ mp: NET.active }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
+const END_TEXT = {
+  hoth: { impGen: 'Der Schildgenerator ist zerstört. Echo Base ist gefallen – Sieg für das Imperium!', impWipe: 'Die Verteidiger von Echo Base sind ausgelöscht – Sieg für das Imperium!',
+    rebWin: 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!', rebGen: 'Der Schildgenerator wurde zerstört – Echo Base ist gefallen.' },
+  endor: { impGen: 'Das Bunkertor ist gesprengt. Der Schildgenerator auf Endor bleibt in imperialer Hand – Sieg für das Imperium!',
+    impWipe: 'Die Rebellen und ihre Ewok-Verbündeten sind geschlagen – Sieg für das Imperium!',
+    rebWin: 'Die imperialen Truppen sind geschlagen! Han Solo kann den Bunker sprengen – der Schild fällt!', rebGen: 'Das Bunkertor wurde gesprengt – die Mission auf Endor ist gescheitert.' },
+};
 function checkEnd(dt) {
-  const impAlive = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
+  const impAlive = G.imps.some(s => s.alive || s.livesLeft > 0) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
   const rebAlive = G.rebels.some(s => s.alive || s.livesLeft > 0) || G.turrets.some(t => t.alive);
   const out = P.lives <= 0 && !P.alive;
   let res = null;
+  const T = END_TEXT[MAP.id];
   if (P.faction === IMP) {
-    if (G.genHP <= 0) res = [true, 'Der Schildgenerator ist zerstört. Echo Base ist gefallen – Sieg für das Imperium!'];
-    else if (!rebAlive) res = [true, 'Die Verteidiger von Echo Base sind ausgelöscht – Sieg für das Imperium!'];
+    if (G.genHP <= 0) res = [true, T.impGen];
+    else if (!rebAlive) res = [true, T.impWipe];
     else if (!impAlive && !P.walker) res = [false, 'Die imperiale Angriffsstreitmacht wurde vernichtet.'];
     else if (out) res = [false, 'Du bist gefallen und hast keine Leben mehr.'];
   } else {
-    if (!impAlive) res = [true, 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!'];
-    else if (G.genHP <= 0) res = [false, 'Der Schildgenerator wurde zerstört – Echo Base ist gefallen.'];
+    if (!impAlive) res = [true, T.rebWin];
+    else if (G.genHP <= 0) res = [false, T.rebGen];
     else if (out) res = [false, 'Du bist gefallen und hast keine Leben mehr.'];
   }
   if (!res) { endTimer = 0; return; }
@@ -1003,6 +1090,7 @@ function simulate(dt) {
   for (const s of G.speeders) s.update(dt);
   updateBolts(dt);
   updateGrenades(dt);
+  if (MAP.id === 'endor') updateEndor(dt);
 }
 // Client: Spiellogik läuft beim Host, hier nur Darstellung + eigenes Fahrzeug
 function clientSimulate(dt) {
@@ -1017,20 +1105,28 @@ function clientSimulate(dt) {
   for (const s of G.speeders) s.update(dt);
   updateBolts(dt);
   updateGrenades(dt);
+  if (MAP.id === 'endor') updateEndor(dt);
 }
 function drawDynamic() {
   boltRed.begin(); boltGreen.begin();
   for (const b of G.bolts) (b.f === REB ? boltRed : boltGreen).add(b);
   boltRed.end(); boltGreen.end();
   rebR.update(G.rebels); impR.update(G.imps);
+  if (MAP.id === 'endor') drawEndor(); else ewokR.update([]);
   NET.drawAvatars(lastDt);
 }
 
 function menuCamera(dt, spectate) {
   menuT += dt * 0.05;
-  const x = Math.sin(menuT) * 130;
-  camera.position.set(x, heightAt(x, 40) + 16, 40);
-  camera.lookAt(x * 0.4, 12, -160);
+  if (MAP.id === 'endor') {
+    const x = Math.sin(menuT * 1.3) * 60;
+    camera.position.set(x, heightAt(x, 30) + 5.5, 30);
+    camera.lookAt(x * 0.5, 5, -90);
+  } else {
+    const x = Math.sin(menuT) * 130;
+    camera.position.set(x, heightAt(x, 40) + 16, 40);
+    camera.lookAt(x * 0.4, 12, -160);
+  }
   gun.visible = false;
   // Demo-Schlacht neu starten, wenn sie vorbei ist
   const enemies = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
