@@ -1,13 +1,12 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
+  "versionCode": 3,
+  "versionName": "1.2",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Neue Grafik: Echtzeit-Schatten, PBR-Materialien, Bloom-Leuchten, Filmic-Tonemapping",
-    "Detailliertere AT-AT, AT-ST, Schneegleiter, Geschütztürme und Soldaten",
-    "Explosionen mit Lichtblitz, Brandspuren und Kamerawackeln",
-    "Original-ähnliche Blaster-Sounds (dispersiver Stahlseil-Chirp) mit Stereo-Ortung",
-    "Modernes HUD und Hauptmenü",
-    "Automatische Update-Prüfung"
+    "Imperium spielbar: als Schneetruppler kämpfen oder AT-ST und AT-AT selbst steuern",
+    "Visier/Zoom für alle Waffen (Zielfernrohr zu Fuß, Nahsicht in Türmen und Läufern)",
+    "KI-Rebellen haben 3 Leben (im Menü einstellbar) und kehren in den Graben zurück",
+    "Seitenwahl und Auswahlschalter im Menü, Reserve-Anzeige im HUD",
+    "Ausbalanciert: stärkere AT-AT-Panzerung, Schneegleiter-KI nutzt das Schleppkabel seltener"
   ]
 }

@@ -24,7 +24,8 @@
   .chip { display: flex; flex-direction: column; padding: 5px 10px 4px; min-width: 56px; background: var(--glass); border: 1px solid var(--line); border-radius: 10px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   .chip span { font-size: clamp(8px, 1.5vmin, 10px); letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; }
   .chip b { font-size: clamp(14px, 3vmin, 20px); font-variant-numeric: tabular-nums; line-height: 1.15; }
-  .chip.reb b { color: var(--reb); } .chip.imp b { color: var(--imp); }
+  .chip.friend b { color: var(--reb); } .chip.foe b { color: var(--imp); }
+  .chip b small { font-size: 0.6em; opacity: 0.75; margin-left: 3px; color: #fff; }
   .hearts i { display: inline-block; width: 0.7em; height: 0.7em; margin-right: 0.18em; background: #ff6b6b; transform: rotate(45deg); border-radius: 0.2em 0 0.2em 0.2em; box-shadow: 0 0 8px rgba(255, 90, 90, 0.7); }
   #genWrap { flex: 0 1 30vw; padding: 6px 12px 8px; text-align: center; }
   #genWrap .lbl { display: flex; justify-content: space-between; font-size: clamp(8px, 1.5vmin, 10px); letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.8; }
@@ -49,6 +50,15 @@
   #heat .bg { stroke: rgba(255, 255, 255, 0.15); }
   #heatArc { stroke: var(--acc); stroke-dasharray: 100; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--acc)); }
   #heat.over #heatArc { stroke: #ff3b2b; filter: drop-shadow(0 0 4px #ff3b2b); }
+  #scope { position: absolute; inset: 0; opacity: 0; transition: opacity 0.12s; pointer-events: none;
+    background: radial-gradient(circle at center, transparent 0, transparent calc(min(42vh, 42vw) - 3px), rgba(0, 0, 0, 0.55) calc(min(42vh, 42vw) - 1px), #050608 min(42vh, 42vw)); }
+  #scope .ret { position: absolute; left: 50%; top: 50%; width: calc(min(42vh, 42vw) * 2); height: calc(min(42vh, 42vw) * 2); transform: translate(-50%, -50%); border-radius: 50%;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(0, 0, 0, 0.8); }
+  #scope .ret::before, #scope .ret::after { content: ''; position: absolute; background: rgba(10, 12, 14, 0.85); }
+  #scope .ret::before { left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; clip-path: polygon(0 0, 100% 0, 100% 46%, 0 46%, 0 54%, 100% 54%, 100% 100%, 0 100%); }
+  #scope .ret::after { top: 50%; left: 0; right: 0; height: 2px; margin-top: -1px; clip-path: polygon(0 0, 46% 0, 46% 100%, 0 100%, 0 0, 54% 0, 100% 0, 100% 100%, 54% 100%); }
+  #scope .dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #ff3a22; box-shadow: 0 0 6px #ff3a22; }
+  #scope .mil { position: absolute; left: 50%; top: 50%; width: 30%; height: 2px; transform: translate(-50%, 40px); background: repeating-linear-gradient(90deg, rgba(10,12,14,0.85) 0 2px, transparent 2px 18px); }
   #prompt { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); font-size: clamp(12px, 2.4vmin, 17px); text-align: center; white-space: nowrap; }
   #prompt span { background: var(--glass2); border: 1px solid var(--line); padding: 6px 14px; border-radius: 999px; display: inline-block; margin: 2px; letter-spacing: 0.02em; }
   #msgs { position: absolute; top: 19%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; width: 92%; }
@@ -69,11 +79,13 @@
   #bFire { right: 4vw; bottom: 8vh; width: 24vmin; height: 24vmin; background: radial-gradient(circle, rgba(255, 90, 50, 0.55), rgba(140, 30, 20, 0.45)); border-color: rgba(255, 160, 120, 0.8); box-shadow: 0 0 22px rgba(255, 80, 40, 0.35); }
   #bJump { right: calc(4vw + 26vmin); bottom: 4vh; width: 14vmin; height: 14vmin; }
   #bUse { right: calc(4vw + 24vmin); bottom: calc(8vh + 18vmin); width: 14vmin; height: 14vmin; background: rgba(40, 130, 220, 0.45); border-color: rgba(140, 200, 255, 0.8); }
-  #bHarp { right: 4vw; bottom: calc(11vh + 25vmin); width: 15vmin; height: 15vmin; background: rgba(230, 160, 30, 0.5); border-color: rgba(255, 220, 140, 0.9); }
+  #bHarp { right: calc(4vw + 40vmin); bottom: calc(8vh + 18vmin); width: 15vmin; height: 15vmin; background: rgba(230, 160, 30, 0.5); border-color: rgba(255, 220, 140, 0.9); }
+  #bZoom { right: calc(4vw + 5vmin); bottom: calc(8vh + 27vmin); width: 13vmin; height: 13vmin; }
   #bPause { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + clamp(50px, 11vmin, 66px)); left: max(10px, env(safe-area-inset-left)); width: 40px; height: 40px; border-radius: 10px; }
 
   /* ---------- Menüs ---------- */
-  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background: radial-gradient(ellipse at 30% 50%, rgba(6, 10, 18, 0.25), rgba(6, 10, 18, 0.7)); overflow-y: auto; touch-action: pan-y; }
+  .screen { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background: radial-gradient(ellipse at 30% 50%, rgba(6, 10, 18, 0.25), rgba(6, 10, 18, 0.7)); overflow-y: auto; touch-action: pan-y; }
+  .screen > * { margin: auto; }
   #menuGrid { display: grid; grid-template-columns: minmax(220px, 0.9fr) 1.3fr; gap: 18px; width: min(1060px, 100%); max-height: 100%; align-items: stretch; }
   .hero { display: flex; flex-direction: column; justify-content: center; padding: 8px 6px; }
   .kicker { font-size: clamp(9px, 1.8vmin, 12px); letter-spacing: 0.4em; text-transform: uppercase; color: var(--acc); opacity: 0.9; }
@@ -93,6 +105,11 @@
   input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--acc); }
   input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255, 181, 71, 0.55); }
   .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .set.wide { grid-column: 1 / -1; }
+  .set > label { margin-bottom: 4px; }
+  .seg { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); margin-bottom: 6px; }
+  .seg button { flex: 1; padding: 7px 6px; border-radius: 8px; font-size: clamp(10px, 2vmin, 13px); letter-spacing: 0.08em; background: transparent; color: #cfd8e6; box-shadow: none; font-weight: 700; }
+  .seg button.on { background: linear-gradient(180deg, #ffd27a, #ff9c3a); color: #1d1203; box-shadow: 0 2px 10px rgba(255, 140, 40, 0.3); }
   button { font: inherit; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; border: 0; border-radius: 12px; padding: 13px 26px; cursor: pointer; color: #1d1203; font-size: clamp(12px, 2.5vmin, 16px);
     background: linear-gradient(180deg, #ffd27a, #ff9c3a); box-shadow: 0 6px 24px rgba(255, 140, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5); transition: transform 0.1s, filter 0.1s; }
   button:active { transform: scale(0.97); filter: brightness(0.95); }
@@ -117,7 +134,7 @@
   #updProg { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin-top: 14px; }
   #updBar { height: 100%; width: 0; background: linear-gradient(90deg, var(--acc), var(--acc2)); transition: width 0.3s; }
   #updText { color: #dbe6f5; font-size: clamp(12px, 2.4vmin, 15px); }
-  @media (max-width: 640px) { #menuGrid { grid-template-columns: 1fr; } #settings { grid-template-columns: 1fr; } .card { max-height: none; } }
+  @media (max-width: 560px) { #menuGrid { grid-template-columns: 1fr; } #settings { grid-template-columns: 1fr; } .card { max-height: none; } }
   @media (max-height: 520px) {
     .card { padding: 10px 14px; } .sub { margin-bottom: 10px; }
     input[type=range] { height: 22px; }
@@ -129,9 +146,10 @@
 <canvas id="gl"></canvas>
 
 <div id="hud" class="hidden">
-  <div id="topbar">
+  <div id="scope"><div class="ret"></div><div class="mil"></div><div class="dot"></div></div>
+  <div id="topbar" style="position:relative">
     <div id="stats"></div>
-    <div id="genWrap" class="glass"><div class="lbl"><span>Schildgenerator</span><span id="genPct">100%</span></div><div id="genBar"><div id="genFill"></div></div></div>
+    <div id="genWrap" class="glass"><div class="lbl"><span id="genName">Schildgenerator</span><span id="genPct">100%</span></div><div id="genBar"><div id="genFill"></div></div></div>
     <div><div id="lives"></div><div id="radarWrap"><canvas id="radar" width="150" height="150"></canvas></div></div>
   </div>
   <div id="cross"><i></i><i></i><i></i><i></i><i></i></div>
@@ -148,6 +166,7 @@
   <div class="tbtn" id="bFire"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>FEUER</div>
   <div class="tbtn" id="bJump"><svg viewBox="0 0 24 24"><path d="M6 14l6-6 6 6M6 19l6-6 6 6"/></svg>SPRUNG</div>
   <div class="tbtn" id="bUse"><svg viewBox="0 0 24 24"><path d="M9 11V5a2 2 0 0 1 4 0v5M13 10V4a2 2 0 0 1 4 0v8M17 9a2 2 0 0 1 3 1v4a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3l-2-4a2 2 0 0 1 3-2l2 2V7a2 2 0 0 1 4 0"/></svg>E</div>
+  <div class="tbtn" id="bZoom"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M11 3v3M11 16v3M3 11h3M16 11h3M20 20l-4-4"/></svg>ZOOM</div>
   <div class="tbtn hidden" id="bHarp"><svg viewBox="0 0 24 24"><path d="M4 20c4-1 6-4 6-8a4 4 0 1 1 4 4c-4 0-7 2-8 6"/><circle cx="14" cy="12" r="1.5"/></svg>KABEL</div>
   <div class="tbtn" id="bPause"><svg viewBox="0 0 24 24" style="width:55%;height:55%"><path d="M9 6v12M15 6v12"/></svg></div>
 </div>
@@ -157,7 +176,7 @@
     <div class="hero">
       <div class="kicker">Rebellen-Allianz · Echo Base</div>
       <h1>Battle<br>of Hoth</h1>
-      <div class="sub">Die imperiale Armee landet auf Hoth. Halte den Schützengraben, bemanne die Geschütztürme und hol die AT-ATs mit dem Schleppkabel von den Beinen.</div>
+      <div class="sub">Die imperiale Armee landet auf Hoth. Verteidige als Rebell den Schützengraben – oder führe als Imperialer die AT-ATs gegen Echo Base.</div>
       <div class="btns"><button id="startBtn">Schlacht starten</button></div>
       <div class="ver"><span id="verLabel">Web-Version</span><button id="updBtn" class="sec small hidden">Nach Updates suchen</button></div>
       <details class="help">
@@ -166,8 +185,10 @@
         Jeder Blastertreffer ist für Soldaten tödlich, auch für dich. Bleib im Graben in Deckung!<br>
         <b>Läufer</b> sind gegen Handblaster gepanzert: Bemanne einen <b>Geschützturm</b> oder steig auf der Landeplattform hinter dem Graben
         in einen <b>Schneegleiter</b>. Flieg tief an ein AT-AT und feuere das <b>Schleppkabel</b> ab.<br>
-        <b>PC:</b> WASD · Maus zielen · Linksklick feuern · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · Esc Pause<br>
-        <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · E = Turm/Gleiter · KABEL = Schleppkabel
+        <b>Imperium:</b> Als Schneetruppler kannst du an einem AT-ST oder AT-AT mit E einsteigen und ihn steuern
+        (vor/zurück laufen, mit dem Blick drehen und zielen). Ziel: den Schildgenerator zerstören.<br>
+        <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · Esc Pause<br>
+        <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel
       </details>
     </div>
     <div class="card glass"><div id="settings"></div></div>

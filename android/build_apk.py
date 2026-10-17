@@ -35,15 +35,14 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 2
-VERSION_NAME = '1.1'
+VERSION_CODE = 3
+VERSION_NAME = '1.2'
 RELEASE_NOTES = [
-    'Neue Grafik: Echtzeit-Schatten, PBR-Materialien, Bloom-Leuchten, Filmic-Tonemapping',
-    'Detailliertere AT-AT, AT-ST, Schneegleiter, Geschütztürme und Soldaten',
-    'Explosionen mit Lichtblitz, Brandspuren und Kamerawackeln',
-    'Original-ähnliche Blaster-Sounds (dispersiver Stahlseil-Chirp) mit Stereo-Ortung',
-    'Modernes HUD und Hauptmenü',
-    'Automatische Update-Prüfung',
+    'Imperium spielbar: als Schneetruppler kämpfen oder AT-ST und AT-AT selbst steuern',
+    'Visier/Zoom für alle Waffen (Zielfernrohr zu Fuß, Nahsicht in Türmen und Läufern)',
+    'KI-Rebellen haben 3 Leben (im Menü einstellbar) und kehren in den Graben zurück',
+    'Seitenwahl und Auswahlschalter im Menü, Reserve-Anzeige im HUD',
+    'Ausbalanciert: stärkere AT-AT-Panzerung, Schneegleiter-KI nutzt das Schleppkabel seltener',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

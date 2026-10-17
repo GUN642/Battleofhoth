@@ -9,11 +9,13 @@ const MAX_REBELS = 60, MAX_TROOPERS = 150;
 
 // ---------------------------------------------------------------- Einstellungen
 const SETTINGS = [
-  { key: 'rebels', group: 'Truppen', label: 'Rebellen (dein Team)', min: 0, max: MAX_REBELS, def: 20 },
+  { key: 'faction', group: 'Deine Seite', label: 'Du kämpfst für', min: 0, max: 1, def: 0, names: ['Rebellen', 'Imperium'], wide: true },
+  { key: 'rebels', group: 'Truppen', label: 'Rebellen', min: 0, max: MAX_REBELS, def: 20 },
+  { key: 'rebLives', label: 'Leben pro Rebell (KI)', min: 1, max: 5, def: 3 },
   { key: 'troopers', label: 'Sturmtruppen', min: 0, max: MAX_TROOPERS, def: 40 },
   { key: 'atst', label: 'AT-ST', min: 0, max: 10, def: 3 },
   { key: 'atat', label: 'AT-AT', min: 0, max: 6, def: 2 },
-  { key: 'aiSpeeders', label: 'Schneegleiter (KI-Verbündete)', min: 0, max: 8, def: 2 },
+  { key: 'aiSpeeders', label: 'Schneegleiter (KI)', min: 0, max: 8, def: 2 },
   { key: 'turrets', label: 'Geschütztürme', min: 0, max: 12, def: 6 },
   { key: 'lives', group: 'Spiel', label: 'Deine Leben', min: 1, max: 10, def: 3 },
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
@@ -30,7 +32,24 @@ function buildSettingsUI() {
   root.innerHTML = '';
   for (const s of SETTINGS) {
     if (s.group) { const g = document.createElement('div'); g.className = 'group'; g.textContent = s.group; root.append(g); }
-    const div = document.createElement('div'); div.className = 'set';
+    const div = document.createElement('div'); div.className = 'set' + (s.wide ? ' wide' : '');
+    if (s.names) {          // Auswahl als Segment-Schalter
+      const lab = document.createElement('label'); lab.textContent = s.label;
+      const seg = document.createElement('div'); seg.className = 'seg';
+      CFG[s.key] = clamp(+CFG[s.key] | 0, s.min, s.max);
+      s.names.forEach((n, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = n;
+        b.classList.toggle('on', CFG[s.key] === i);
+        b.addEventListener('click', () => {
+          CFG[s.key] = i; saveCfg();
+          seg.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j === i));
+          if (s.key === 'gfx') applyGfx();
+        });
+        seg.append(b);
+      });
+      div.append(lab, seg); root.append(div);
+      continue;
+    }
     const lab = document.createElement('label');
     const name = document.createElement('span'); name.textContent = s.label;
     const val = document.createElement('b');
@@ -142,15 +161,25 @@ const gun = new THREE.Group();
     gBox(0.1, 0.075, 0.18, -0.025, -0.07, 0.06, 0xcfc3a6), gSph(0.045, -0.025, -0.09, 0.12, 0x6b5a48),
   ], MAT.gun);
   gm.castShadow = false;
-  gun.add(gm);
+  // E-11 der Sturmtruppen (schwarz, weißer Panzerhandschuh)
+  const ge = vcMesh([
+    gBox(0.06, 0.08, 0.36, 0, 0, -0.08, 0x18191b), gCyl(0.032, 0.032, 0.3, 12, 0, 0.01, -0.36, 0x222326, H),
+    gCyl(0.02, 0.02, 0.06, 10, 0, 0.01, -0.54, 0x0e0e0f, H), gCyl(0.017, 0.017, 0.2, 10, 0, 0.068, -0.1, 0x3a3d42, H),
+    gBox(0.022, 0.07, 0.07, -0.042, -0.035, -0.12, 0x18191b), gBox(0.04, 0.09, 0.045, 0, -0.08, -0.04, 0x18191b),
+    gBox(0.02, 0.02, 0.18, 0, -0.02, 0.12, 0x2a2b2e), gBox(0.1, 0.08, 0.17, -0.025, -0.07, 0.05, 0xf2f2f2), gSph(0.045, -0.025, -0.09, 0.0, 0x1a1a1a),
+  ], MAT.gun);
+  ge.castShadow = false; ge.visible = false;
+  gun.add(gm); gun.add(ge);
+  gun.userData = { reb: gm, imp: ge };
 }
 gun.position.set(0.13, -0.12, -0.3); gun.scale.setScalar(IS_TOUCH ? 0.34 : 0.4); gun.rotation.y = 0.06;
 const gunTip = new THREE.Object3D(); gunTip.position.set(0, 0.012, -0.72); gun.add(gunTip);
+function setGunFaction(f) { gun.userData.reb.visible = f === REB; gun.userData.imp.visible = f === IMP; gunTip.position.z = f === IMP ? -0.58 : -0.72; }
 camera.add(gun);
 
 // ---------------------------------------------------------------- Spieler
 const P = G.player = {
-  type: 'player', mode: 'spectate', alive: false, pos: new V3(), yaw: 0, pitch: 0, vy: 0, onGround: true,
+  type: 'player', faction: REB, mode: 'spectate', alive: false, pos: new V3(), yaw: 0, pitch: 0, vy: 0, onGround: true, walker: null,
   lives: 0, kills: 0, heat: 0, overheat: 0, fireCd: 0, respawnT: 0, turret: null, speeder: null,
   bob: 0, recoil: 0, god: 0, deathCause: '',
   exitTurret(destroyed) {
@@ -162,13 +191,40 @@ const P = G.player = {
     if (destroyed) G.msg('Du wurdest aus dem zerstörten Turm geschleudert!', 'turret2');
   },
   speederDestroyed() { const sp = this.speeder; this.speeder = null; killPlayer('Schneegleiter abgeschossen', sp ? sp.pos : null); },
+  exitWalker() {
+    const w = this.walker; if (!w) return;
+    w.pilot = null; w.ctrl.fire = false; w.ctrl.fwd = 0; w.target = null; w.thinkCd = 0;
+    if (w.goal) { w.goal.copy(w.pos); w.goalT = 0; }
+    this.walker = null; this.mode = 'foot';
+    const side = w.type === 'atat' ? 9 : 3.5;
+    this.pos.set(w.pos.x + Math.cos(w.yaw) * side, 0, w.pos.z - Math.sin(w.yaw) * side);
+    this.pos.y = heightAt(this.pos.x, this.pos.z); this.onGround = true; this.pitch = 0;
+  },
 };
+const WALKER_NAME = { atst: 'AT-ST', atat: 'AT-AT' };
 
 function spawnPlayer(first) {
-  const x = first ? 0 : rand(-25, 25);
-  P.pos.set(x, 0, trenchZ(x) + 0.2); P.pos.y = heightAt(P.pos.x, P.pos.z);
-  P.yaw = 0; P.pitch = 0.03; P.vy = 0; P.mode = 'foot'; P.alive = true; P.heat = 0; P.overheat = 0;
-  P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null;
+  if (P.faction === IMP) {
+    // Imperium: neben einem freien Läufer absetzen (AT-ST bevorzugt), sonst hinter den Sturmtruppen
+    const free = G.atsts.concat(G.atats).filter(w => w.alive && !w.pilot && !w.tangled);
+    const w = free.find(v => v.type === 'atst') || free[0];
+    if (w) {
+      const side = (w.type === 'atat' ? 10 : 4.5) * (Math.random() < 0.5 ? 1 : -1);
+      P.pos.set(w.pos.x + Math.cos(w.yaw) * side, 0, w.pos.z - Math.sin(w.yaw) * side - 3);
+    } else {
+      const zs = G.imps.filter(s => s.alive).map(s => s.pos.z);
+      P.pos.set(rand(-30, 30), 0, (zs.length ? Math.min(...zs) : -250) - 15);
+    }
+    P.yaw = Math.PI;
+  } else {
+    const x = first ? 0 : rand(-25, 25);
+    P.pos.set(x, 0, trenchZ(x) + 0.2);
+    P.yaw = 0;
+  }
+  P.pos.y = heightAt(P.pos.x, P.pos.z);
+  P.pitch = 0.03; P.vy = 0; P.mode = 'foot'; P.alive = true; P.heat = 0; P.overheat = 0;
+  P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null; P.walker = null;
+  input.zoomToggle = false;
   $('dead').classList.add('hidden');
 }
 
@@ -176,8 +232,9 @@ function killPlayer(cause, where) {
   if (!P.alive) return;
   if (P.mode === 'turret' && P.turret) P.turret.manned = false;
   if (P.speeder && P.speeder.mode === 'player') { P.speeder.mode = 'gone'; P.speeder.respawnT = 3; P.speeder.alive = false; }
+  if (P.walker) { P.walker.pilot = null; P.walker.ctrl.fire = false; }
   P.alive = false; P.lives--; P.deathCause = cause;
-  P.mode = 'dead'; P.respawnT = 4; P.turret = null; P.speeder = null;
+  P.mode = 'dead'; P.respawnT = 4; P.turret = null; P.speeder = null; P.walker = null; input.zoomToggle = false;
   if (where) P.pos.copy(where);
   $('dead').classList.remove('hidden');
   $('deadTitle').textContent = cause === 'Blastertreffer' ? 'Getroffen!' : cause + '!';
@@ -185,6 +242,7 @@ function killPlayer(cause, where) {
 }
 G.onPlayerHit = (cause) => { if (P.god > 0 || !P.alive) return; killPlayer(cause); };
 G.onKill = () => { P.kills++; };
+G.onPilotDown = (w) => { if (P.walker === w) killPlayer(WALKER_NAME[w.type] + ' zerstört', camera.position); };
 let hitTimer = 0;
 G.hitMarker = () => { $('hit').classList.add('on'); hitTimer = 0.15; SFX.click(); };
 
@@ -202,7 +260,7 @@ G.msg = (text, key) => {
 };
 
 // ---------------------------------------------------------------- Eingabe
-const input = { keys: {}, mouseFire: false, touchFire: false, lookDX: 0, lookDY: 0, joyX: 0, joyY: 0, use: false, jump: false, harpoon: false };
+const input = { keys: {}, mouseFire: false, touchFire: false, lookDX: 0, lookDY: 0, joyX: 0, joyY: 0, use: false, jump: false, harpoon: false, zoomHeld: false, zoomToggle: false };
 let pointerLocked = false;
 
 window.addEventListener('keydown', (e) => {
@@ -210,6 +268,7 @@ window.addEventListener('keydown', (e) => {
   if (state !== 'playing') { if (e.code === 'Escape' && state === 'paused') resume(); return; }
   if (e.code === 'KeyE') input.use = true;
   if (e.code === 'KeyF') input.harpoon = true;
+  if (e.code === 'KeyQ') input.zoomToggle = !input.zoomToggle;
   if (e.code === 'Space') { input.jump = true; e.preventDefault(); }
   if (e.code === 'Escape' || e.code === 'KeyP') pause();
 });
@@ -220,8 +279,10 @@ canvas.addEventListener('mousedown', (e) => {
   SFX.init();
   if (!pointerLocked) { canvas.requestPointerLock && canvas.requestPointerLock(); return; }
   if (e.button === 0) input.mouseFire = true;
+  if (e.button === 2) input.zoomHeld = true;
 });
-window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouseFire = false; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouseFire = false; if (e.button === 2) input.zoomHeld = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('mousemove', (e) => { if (pointerLocked) { input.lookDX += e.movementX; input.lookDY += e.movementY; } });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = document.pointerLockElement === canvas;
@@ -241,6 +302,7 @@ function touchStart(e) {
     if (id === 'bJump') { input.jump = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'btn', el: btn }; continue; }
     if (id === 'bUse') { input.use = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'btn', el: btn }; continue; }
     if (id === 'bHarp') { input.harpoon = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'btn', el: btn }; continue; }
+    if (id === 'bZoom') { input.zoomToggle = !input.zoomToggle; touches[t.identifier] = { kind: 'btn' }; continue; }
     if (id === 'bFire') { input.touchFire = true; btn.classList.add('on'); touches[t.identifier] = { kind: 'fire', el: btn, x: t.clientX, y: t.clientY }; continue; }
     if (t.clientX < window.innerWidth * 0.42 && !Object.values(touches).some(o => o.kind === 'joy')) {
       touches[t.identifier] = { kind: 'joy', bx: t.clientX, by: t.clientY };
@@ -281,7 +343,7 @@ window.addEventListener('touchcancel', touchEnd);
 function resetInput() {
   for (const k in touches) delete touches[k];
   input.touchFire = input.mouseFire = false; input.joyX = input.joyY = 0; input.lookDX = input.lookDY = 0;
-  input.use = input.jump = input.harpoon = false; input.keys = {};
+  input.use = input.jump = input.harpoon = false; input.keys = {}; input.zoomHeld = false;
   document.querySelectorAll('.tbtn.on').forEach(b => b.classList.remove('on'));
   $('joyBase').style.display = 'none';
 }
@@ -293,6 +355,22 @@ function camForward(out) { const cp = Math.cos(P.pitch); return out.set(-Math.si
 function aimDistance(o, d, maxD) {
   let best = maxD;
   for (let t = 2; t < maxD; t += 2) if (heightAt(o.x + d.x * t, o.z + d.z * t) > o.y + d.y * t) { best = t; break; }
+  const sphere = (c, r) => {
+    _tmp.subVectors(c, o); const t = _tmp.dot(d); if (t <= 0 || t > best) return;
+    if (_tmp.addScaledVector(d, -t).lengthSq() < r * r) best = t;
+  };
+  if (P.faction === IMP) {
+    for (const s of G.rebels) {
+      if (!s.alive) continue;
+      _tmp.set(s.pos.x - o.x, s.pos.y + 1 - o.y, s.pos.z - o.z);
+      const t = _tmp.dot(d); if (t <= 0 || t > best) continue;
+      if (_tmp.addScaledVector(d, -t).lengthSq() < 0.6) best = t;
+    }
+    for (const tu of G.turrets) if (tu.alive) sphere(_tmp2.set(tu.pos.x, tu.pos.y + 3, tu.pos.z), 2.2);
+    for (const sp of G.speeders) if (sp.alive && sp.mode !== 'gone') sphere(sp.pos, 2.6);
+    if (G.genHP > 0) sphere(_tmp2.set(WORLD.gen.x, WORLD.gen.y, WORLD.gen.z), 14);
+    return best;
+  }
   for (const s of G.imps) {
     if (!s.alive) continue;
     _tmp.set(s.pos.x - o.x, s.pos.y + 1 - o.y, s.pos.z - o.z);
@@ -312,6 +390,14 @@ function aimDistance(o, d, maxD) {
 // ---------------------------------------------------------------- Spieler-Update
 function nearestUsable() {
   let best = null, bd = 1e9;
+  if (P.faction === IMP) {
+    for (const w of G.atsts.concat(G.atats)) {
+      if (!w.alive || w.pilot || w.tangled) continue;
+      const d = Math.hypot(w.pos.x - P.pos.x, w.pos.z - P.pos.z), r = w.type === 'atat' ? 11 : 5;
+      if (d < r && d < bd) { bd = d; best = w; }
+    }
+    return best;
+  }
   for (const t of G.turrets) {
     if (!t.alive || t.manned) continue;
     const d = Math.hypot(t.pos.x - P.pos.x, t.pos.z - P.pos.z);
@@ -334,8 +420,26 @@ function nearestTowable(sp) {
   return best;
 }
 
+// Visier/Zoom: 0 = normal, 1 = voll gezoomt
+let zoomT = 0;
+const BASE_FOV = 72;
+function updateZoom(dt) {
+  const can = P.mode === 'foot' || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder';
+  if (!can) input.zoomToggle = false;
+  const want = can && (input.zoomHeld || input.zoomToggle);
+  zoomT = clamp(zoomT + (want ? dt * 7 : -dt * 7), 0, 1);
+  const zf = P.mode === 'foot' ? 28 : P.mode === 'speeder' ? 52 : 22;
+  const fov = lerp(BASE_FOV, zf, smooth(0, 1, zoomT));
+  if (Math.abs(fov - camera.fov) > 0.01) {
+    camera.fov = fov; camera.updateProjectionMatrix();
+    const buf = renderer.getDrawingBufferSize(new THREE.Vector2());
+    FX.setScale(buf.y / (2 * Math.tan(THREE.MathUtils.degToRad(fov) / 2)));
+  }
+}
+
 function updatePlayer(dt) {
-  const sens = 0.00045 * CFG.sens * (IS_TOUCH ? 1.2 : 1);
+  updateZoom(dt);
+  const sens = 0.00045 * CFG.sens * (IS_TOUCH ? 1.2 : 1) * (camera.fov / BASE_FOV);
   const lookX = input.lookDX * sens, lookY = input.lookDY * sens;
   input.lookDX = input.lookDY = 0;
   const k = input.keys;
@@ -391,27 +495,35 @@ function updatePlayer(dt) {
     }
     if (ml > 0.1 && P.onGround) P.bob += dt * spd * 1.9;
     const bobY = Math.sin(P.bob) * 0.045 * Math.min(1, ml);
-    camera.position.set(P.pos.x, P.pos.y + 1.62 + bobY, P.pos.z);
+    camera.position.set(P.pos.x, P.pos.y + 1.62 + bobY * (1 - zoomT), P.pos.z);
     camera.rotation.set(P.pitch, P.yaw, 0);
-    gun.visible = true;
-    gun.position.set(0.13 + Math.cos(P.bob * 0.5) * 0.005, -0.12 + bobY * 0.15, -0.3 + P.recoil * 0.025);
-    gun.rotation.x = P.recoil * 0.12;
-    // Feuern
+    // Waffe beim Zielen zur Bildmitte (über Kimme und Korn), voll gezoomt blickt man durchs Zielfernrohr
+    const z = smooth(0, 1, zoomT);
+    gun.visible = zoomT < 0.85;
+    gun.position.set(lerp(0.13, 0.0, z) + Math.cos(P.bob * 0.5) * 0.005 * (1 - z), lerp(-0.12, -0.075, z) + bobY * 0.15, lerp(-0.3, -0.24, z) + P.recoil * 0.025);
+    gun.rotation.set(P.recoil * 0.12, lerp(0.06, 0, z), 0);
+    // Feuern (aus der Hüfte ungenauer als mit Visier)
     if (firing && P.fireCd <= 0 && P.overheat <= 0) {
       P.fireCd = 0.17; P.heat += 0.075; P.recoil = 1;
       if (P.heat >= 1) { P.heat = 1; P.overheat = 1.6; G.msg('Blaster überhitzt!', 'heat'); }
       camera.updateMatrixWorld(true);
       camForward(_fwd);
-      const dist = aimDistance(camera.position, _fwd, 260);
+      const dist = aimDistance(camera.position, _fwd, 320);
       _tmp2.copy(camera.position).addScaledVector(_fwd, dist);
-      gunTip.getWorldPosition(_tmp);
-      fireBolt(0, REB, _tmp, _tmp2, 0.002, P);
+      if (zoomT > 0.85) _tmp.copy(camera.position).addScaledVector(_fwd, 0.6).y -= 0.08;
+      else gunTip.getWorldPosition(_tmp);
+      fireBolt(0, P.faction, _tmp, _tmp2, lerp(0.012, 0.0008, z), P);
     }
     const u = nearestUsable();
     if (u) {
-      prompts.push(u.type === 'turret' ? '[E] Geschützturm bemannen' : '[E] In den Schneegleiter steigen');
+      prompts.push(u.type === 'turret' ? '[E] Geschützturm bemannen' : u.type === 'speeder' ? '[E] In den Schneegleiter steigen' : '[E] ' + WALKER_NAME[u.type] + ' steuern');
       if (use) {
-        if (u.type === 'turret') {
+        if (u.type === 'atst' || u.type === 'atat') {
+          P.mode = 'walker'; P.walker = u; u.pilot = P;
+          P.yaw = u.yaw - Math.PI; P.pitch = 0;
+          G.msg(u.type === 'atat' ? 'AT-AT übernommen! Feuere auf Geschütztürme und den Schildgenerator. Vorsicht vor Schleppkabeln!'
+            : 'AT-ST übernommen! Räume den Schützengraben und zerstöre die Geschütztürme.', 'win');
+        } else if (u.type === 'turret') {
           P.mode = 'turret'; P.turret = u; u.manned = true;
           P.yaw = u.aimYaw - Math.PI; P.pitch = clamp(u.aimPitch, -0.35, 0.6);
           G.msg('Geschützturm bemannt – ziele auf die Läufer!', 'tin');
@@ -427,7 +539,8 @@ function updatePlayer(dt) {
     P.yaw -= lookX * 0.8; P.pitch = clamp(P.pitch - lookY * 0.8, -0.35, 0.6);
     t.aimYaw = P.yaw + Math.PI; t.aimPitch = P.pitch; t.apply();
     camForward(_fwd);
-    camera.position.set(t.pos.x, t.pos.y + 7.4, t.pos.z).addScaledVector(_fwd, -6.5);
+    // Gezoomt: Blick direkt über die Läufe
+    camera.position.set(t.pos.x, t.pos.y + lerp(7.4, 6.45, zoomT), t.pos.z).addScaledVector(_fwd, lerp(-6.5, 1.0, zoomT));
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = false;
     if (firing && P.fireCd <= 0 && P.overheat <= 0) {
@@ -441,6 +554,28 @@ function updatePlayer(dt) {
     }
     prompts.push('[E] Turm verlassen');
     if (use) P.exitTurret(false);
+  } else if (P.mode === 'walker') {
+    const w = P.walker, isAtat = w.type === 'atat';
+    // Drehen per Blick oder Joystick/A-D, Laufen per Joystick/W-S
+    P.yaw -= lookX * 0.8 + strIn * dt * (isAtat ? 0.4 : 1.2);
+    P.pitch = clamp(P.pitch - lookY * 0.8, isAtat ? -0.35 : -0.4, isAtat ? 0.3 : 0.35);
+    camForward(_fwd);
+    w.head.getWorldPosition(_tmp2);
+    if (isAtat) camera.position.copy(_tmp2).addScaledVector(_fwd, lerp(-32, 5.5, zoomT)).y += lerp(12, 0.4, zoomT);
+    else camera.position.copy(_tmp2).addScaledVector(_fwd, lerp(-10, 1.9, zoomT)).y += lerp(4.6, 0.9, zoomT);
+    const ch = heightAt(camera.position.x, camera.position.z) + 1;
+    if (camera.position.y < ch) camera.position.y = ch;
+    camera.rotation.set(P.pitch, P.yaw, 0);
+    gun.visible = false;
+    camera.updateMatrixWorld(true);
+    const dist = aimDistance(camera.position, _fwd, 450);
+    w.ctrl.aim.copy(camera.position).addScaledVector(_fwd, dist);
+    w.ctrl.fwd = fwdIn; w.ctrl.yaw = P.yaw + Math.PI; w.ctrl.pitch = P.pitch; w.ctrl.fire = firing;
+    P.heat = clamp(w.fireCd / (isAtat ? 1.3 : 0.38), 0, 1); P.overheat = 0;
+    P.pos.copy(w.pos);
+    if (w.tangled) prompts.push('Die Beine sind mit einem Schleppkabel gefesselt!');
+    prompts.push('[E] Aussteigen');
+    if (use) P.exitWalker();
   } else if (P.mode === 'speeder') {
     const sp = P.speeder;
     if (sp.mode === 'tow') {
@@ -508,18 +643,24 @@ function updateHUD(dt) {
   const heat = $('heat');
   $('heatArc').style.strokeDashoffset = (100 - P.heat * 100).toFixed(1);
   heat.classList.toggle('over', P.overheat > 0);
-  heat.style.opacity = (P.mode === 'foot' || P.mode === 'turret') && P.heat > 0.01 ? '1' : '0';
-  $('cross').className = P.mode === 'speeder' || P.mode === 'turret' ? 'big' : '';
-  $('cross').style.visibility = P.mode === 'dead' ? 'hidden' : 'visible';
+  heat.style.opacity = (P.mode === 'foot' || P.mode === 'turret' || P.mode === 'walker') && P.heat > 0.01 ? '1' : '0';
+  const scoped = P.mode === 'foot' && zoomT > 0.85;
+  $('scope').style.opacity = scoped ? '1' : '0';
+  $('cross').className = P.mode === 'speeder' || P.mode === 'turret' || P.mode === 'walker' ? 'big' : '';
+  $('cross').style.visibility = P.mode === 'dead' || scoped ? 'hidden' : 'visible';
   $('bHarp').classList.toggle('hidden', P.mode !== 'speeder');
   $('bJump').classList.toggle('hidden', P.mode !== 'foot');
+  $('bZoom').classList.toggle('on', input.zoomToggle);
+  $('bZoom').classList.toggle('hidden', P.mode === 'dead');
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.2;
     const reb = G.rebels.filter(s => s.alive).length, imp = G.imps.filter(s => s.alive).length;
+    const res = G.rebels.reduce((a, s) => a + Math.max(0, s.livesLeft), 0);
     const st = G.atsts.filter(s => s.alive).length, at = G.atats.filter(s => s.alive).length;
-    $('stats').innerHTML = `<div class="chip reb"><span>Rebellen</span><b>${reb}</b></div>` +
-      `<div class="chip imp"><span>Sturmtruppen</span><b>${imp}</b></div><div class="chip imp"><span>AT-ST</span><b>${st}</b></div><div class="chip imp"><span>AT-AT</span><b>${at}</b></div>`;
+    const own = P.faction === IMP ? 'imp' : 'reb', foe = P.faction === IMP ? 'reb' : 'imp';
+    $('stats').innerHTML = `<div class="chip ${own === 'reb' ? 'friend' : 'foe'}"><span>Rebellen</span><b>${reb}${res ? `<small>+${res}</small>` : ''}</b></div>` +
+      `<div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>Sturmtruppen</span><b>${imp}</b></div><div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>AT-ST</span><b>${st}</b></div><div class="chip ${foe === 'imp' ? 'foe' : 'friend'}"><span>AT-AT</span><b>${at}</b></div>`;
     $('lives').innerHTML = `<div class="chip"><span>Leben</span><b class="hearts">${'<i></i>'.repeat(Math.max(0, P.lives))}</b></div><div class="chip"><span>Abschüsse</span><b>${P.kills}</b></div>`;
     $('genFill').style.width = (100 * G.genHP / G.genMax).toFixed(1) + '%';
     $('genPct').textContent = Math.round(100 * G.genHP / G.genMax) + '%';
@@ -534,6 +675,7 @@ function drawRadar() {
   c.save(); c.translate(S / 2, S / 2);
   c.strokeStyle = 'rgba(255,255,255,0.18)'; c.beginPath(); c.arc(0, 0, R / 2, 0, TAU); c.stroke();
   const yaw = P.mode === 'speeder' && P.speeder ? P.speeder.yaw - Math.PI : P.yaw;
+  const friend = '#7dff8a', foe = '#ff5040', imp = P.faction === IMP;
   const cs = Math.cos(yaw), sn = Math.sin(yaw);
   const px = camera.position.x, pz = camera.position.z;
   const dot = (x, z, r, col, sq) => {
@@ -543,13 +685,13 @@ function drawRadar() {
     c.fillStyle = col;
     if (sq) c.fillRect(rx - r, ry - r, r * 2, r * 2); else { c.beginPath(); c.arc(rx, ry, r, 0, TAU); c.fill(); }
   };
-  dot(WORLD.gen.x, WORLD.gen.z, 5, '#4fc3ff');
-  for (const t of G.turrets) if (t.alive) dot(t.pos.x, t.pos.z, 2.5, '#9ad0ff', true);
-  for (const s of G.rebels) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, '#7dff8a');
-  for (const s of G.speeders) if (s.mode === 'ai' || s.mode === 'tow' || s.mode === 'parked') dot(s.pos.x, s.pos.z, 2.5, '#ffb340');
-  for (const s of G.imps) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, '#ff5040');
-  for (const w of G.atsts) if (w.alive) dot(w.pos.x, w.pos.z, 3.5, '#ff7a3a', true);
-  for (const w of G.atats) if (w.alive) dot(w.pos.x, w.pos.z, 5, '#ff3020', true);
+  dot(WORLD.gen.x, WORLD.gen.z, 5, imp ? '#ffcc33' : '#4fc3ff');
+  for (const t of G.turrets) if (t.alive) dot(t.pos.x, t.pos.z, 2.5, imp ? '#ff8a6a' : '#9ad0ff', true);
+  for (const s of G.rebels) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, imp ? foe : friend);
+  for (const s of G.speeders) if (s.mode === 'ai' || s.mode === 'tow' || s.mode === 'parked') dot(s.pos.x, s.pos.z, 2.5, imp ? '#ff7a3a' : '#ffb340');
+  for (const s of G.imps) if (s.alive) dot(s.pos.x, s.pos.z, 1.6, imp ? friend : foe);
+  for (const w of G.atsts) if (w.alive) dot(w.pos.x, w.pos.z, 3.5, imp ? '#5fe07a' : '#ff7a3a', true);
+  for (const w of G.atats) if (w.alive) dot(w.pos.x, w.pos.z, 5, imp ? '#3fc060' : '#ff3020', true);
   c.fillStyle = '#fff'; c.beginPath(); c.moveTo(0, -6); c.lineTo(4, 4); c.lineTo(-4, 4); c.fill();
   c.restore();
 }
@@ -572,7 +714,7 @@ function setupBattle(cfg) {
   for (let i = 0; i < nR; i++) {
     let x = -TR.len + 8 + (i + 0.5) / nR * (2 * TR.len - 16) + rand(-2, 2);
     if (Math.abs(x) < 2.5) x += 4;
-    G.rebels.push(new Soldier(REB, x, trenchZ(x) + rand(-0.6, 0.2)));
+    G.rebels.push(new Soldier(REB, x, trenchZ(x) + rand(-0.6, 0.2), clamp(cfg.rebLives | 0 || 1, 1, 5)));
   }
   for (let i = 0; i < Math.min(cfg.troopers, MAX_TROOPERS); i++) G.imps.push(new Soldier(IMP, rand(-150, 150), rand(-275, -165)));
   for (let i = 0; i < cfg.atst; i++) G.atsts.push(new ATST(rand(-110, 110), rand(-340, -260)));
@@ -592,7 +734,8 @@ function setupBattle(cfg) {
 function newGame() {
   demo = false;
   setupBattle(CFG);
-  if (G.rebels.length + G.imps.length + G.atats.length + G.atsts.length === 0) { /* leer */ }
+  P.faction = CFG.faction === 1 ? IMP : REB;
+  setGunFaction(P.faction);
   P.lives = CFG.lives; P.kills = 0; spawnPlayer(true);
   state = 'playing'; endTimer = 0; battleT = 0; document.title = 'Hoth';
   resetInput();
@@ -603,14 +746,16 @@ function newGame() {
   $('msgs').innerHTML = '';
   lastPrompt = '#';
   SFX.init();
-  G.msg('Das Imperium greift an! Halte den Graben und schütze den Schildgenerator!', 'start');
+  $('genName').textContent = P.faction === IMP ? 'Ziel: Schildgenerator' : 'Schildgenerator';
+  G.msg(P.faction === IMP ? 'Zerstört den Schildgenerator! Steig mit E in ein AT-ST oder AT-AT.'
+    : 'Das Imperium greift an! Halte den Graben und schütze den Schildgenerator!', 'start');
   if (!IS_TOUCH && canvas.requestPointerLock) canvas.requestPointerLock();
 }
 
 function startDemo() {
   demo = true;
-  setupBattle({ rebels: 24, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
-  P.mode = 'spectate'; P.alive = false; P.lives = 0;
+  setupBattle({ rebels: 24, rebLives: 2, troopers: 45, atst: 3, atat: 3, aiSpeeders: 3, turrets: 6, diff: 1 });
+  P.mode = 'spectate'; P.alive = false; P.lives = 0; P.faction = REB; P.walker = null;
 }
 
 function showMenu() {
@@ -643,7 +788,7 @@ function endGame(win, reason) {
   t.className = win ? 'win' : 'lose';
   const m = Math.floor(battleT / 60), s = Math.floor(battleT % 60);
   const reb = G.rebels.filter(r => r.alive).length;
-  $('overText').innerHTML = (win ? 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!' : reason) +
+  $('overText').innerHTML = reason +
     `<div class="stats2"><div><span>Abschüsse</span><b>${P.kills}</b></div><div><span>Rebellen übrig</span><b>${reb}/${G.rebels.length}</b></div>` +
     `<div><span>Schildgenerator</span><b>${Math.round(100 * G.genHP / G.genMax)}%</b></div><div><span>Dauer</span><b>${m}:${String(s).padStart(2, '0')}</b></div></div>`;
 }
@@ -662,11 +807,20 @@ $('menuBtn').addEventListener('click', showMenu);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 function checkEnd(dt) {
-  const enemies = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
+  const impAlive = G.imps.some(s => s.alive) || G.atsts.some(s => s.alive) || G.atats.some(s => s.alive);
+  const rebAlive = G.rebels.some(s => s.alive || s.livesLeft > 0) || G.turrets.some(t => t.alive);
+  const out = P.lives <= 0 && !P.alive;
   let res = null;
-  if (!enemies) res = [true, ''];
-  else if (G.genHP <= 0) res = [false, 'Der Schildgenerator wurde zerstört – Echo Base ist gefallen.'];
-  else if (P.lives <= 0 && !P.alive) res = [false, 'Du bist gefallen und hast keine Leben mehr.'];
+  if (P.faction === IMP) {
+    if (G.genHP <= 0) res = [true, 'Der Schildgenerator ist zerstört. Echo Base ist gefallen – Sieg für das Imperium!'];
+    else if (!rebAlive) res = [true, 'Die Verteidiger von Echo Base sind ausgelöscht – Sieg für das Imperium!'];
+    else if (!impAlive && !P.walker) res = [false, 'Die imperiale Angriffsstreitmacht wurde vernichtet.'];
+    else if (out) res = [false, 'Du bist gefallen und hast keine Leben mehr.'];
+  } else {
+    if (!impAlive) res = [true, 'Der Angriff des Imperiums wurde abgewehrt. Echo Base ist gerettet!'];
+    else if (G.genHP <= 0) res = [false, 'Der Schildgenerator wurde zerstört – Echo Base ist gefallen.'];
+    else if (out) res = [false, 'Du bist gefallen und hast keine Leben mehr.'];
+  }
   if (!res) { endTimer = 0; return; }
   endTimer += dt;
   if (endTimer > (res[0] ? 2 : 3)) endGame(res[0], res[1]);

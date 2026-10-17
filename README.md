@@ -1,7 +1,7 @@
 # Battle of Hoth – Ego-Shooter für Android
 
-Ein einfacher 3D-First-Person-Shooter zur Schlacht von Hoth. Du kämpfst auf der Seite der
-Rebellen und verteidigst Echo Base gegen Sturmtruppen, AT-STs und AT-ATs.
+Ein 3D-First-Person-Shooter zur Schlacht von Hoth. Du verteidigst als Rebell Echo Base gegen
+Sturmtruppen, AT-STs und AT-ATs, oder du greifst als Imperialer an und steuerst die Läufer selbst.
 
 **Fertige APK:** [`dist/BattleOfHoth.apk`](dist/BattleOfHoth.apk) (Android 7.0 oder neuer, aktuelle Version siehe
 [`dist/version.json`](dist/version.json))
@@ -43,8 +43,18 @@ Version 1.0 hatte noch keine Update-Prüfung und muss einmalig von Hand durch 1.
   Handblaster prallen an der Panzerung ab.
 - Im Schneegleiter kannst du tief an ein AT-AT heranfliegen und das **Schleppkabel** abfeuern.
   Der Gleiter umkreist dann die Beine und bringt den Läufer zu Fall.
-- Sieg: Alle imperialen Einheiten sind vernichtet. Niederlage: Der Schildgenerator wird zerstört
-  oder du hast keine Leben mehr.
+- **Visier:** Mit der rechten Maustaste (oder Q bzw. dem Touch-Knopf ZOOM) zoomst du heran. Zu Fuß blickst du
+  durchs Zielfernrohr und triffst deutlich genauer als aus der Hüfte; in Türmen und Läufern wechselt die Sicht
+  ins Cockpit.
+- **Rebellen-KI** hat 3 Leben (einstellbar 1–5): Gefallene Rebellen kehren nach einigen Sekunden in den Graben
+  zurück. Das HUD zeigt die Reserve als „+N“.
+- **Seite Rebellen** – Sieg: alle imperialen Einheiten vernichtet. Niederlage: Schildgenerator zerstört oder
+  keine Leben mehr.
+- **Seite Imperium** – Du startest als Schneetruppler neben einem freien Läufer. Mit E steigst du in ein
+  **AT-ST** (schnell, Doppelkanone) oder **AT-AT** (langsam, schwere Kanonen, aber anfällig für Schleppkabel).
+  Laufen mit Joystick/W-S, drehen mit dem Blick oder A-D, zielen und feuern wie gewohnt. Geschütztürme und den
+  Schildgenerator können nur die Läufer beschädigen. Sieg: Schildgenerator zerstört oder alle Verteidiger
+  ausgeschaltet. Niederlage: Angriffsstreitmacht vernichtet oder keine Leben mehr.
 
 Im Hauptmenü lässt sich einstellen: Anzahl der Rebellen (dein Team), Sturmtruppen, AT-ST, AT-AT,
 KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlichkeit und Grafik.
@@ -55,7 +65,8 @@ KI-Schneegleiter, Geschütztürme, deine Leben, Schwierigkeit, Blick-Empfindlich
 | Bewegen | linke Bildschirmhälfte ziehen (ganz ausgelenkt = sprinten) | WASD, Shift = sprinten |
 | Zielen | rechte Bildschirmhälfte wischen | Maus |
 | Feuern | FEUER halten (dabei weiter zielen) | Linksklick |
-| Turm/Gleiter benutzen, aussteigen | E | E |
+| Visier/Zoom | ZOOM | rechte Maustaste halten oder Q |
+| Turm/Gleiter/Läufer benutzen, aussteigen | E | E |
 | Schleppkabel | KABEL | F |
 | Schub im Gleiter | Joystick vor/zurück | W/S |
 | Pause | II oder Zurück-Taste | Esc |

@@ -14,8 +14,10 @@ const G = {
   rebels: [], imps: [], atats: [], atsts: [], turrets: [], speeders: [], bolts: [],
   player: null, genHP: 150, genMax: 150,
   diff: { spread: 0.04, rate: 1 },
-  msg: () => {}, onPlayerHit: () => {}, onKill: () => {}, hitMarker: () => {},
+  msg: () => {}, onPlayerHit: () => {}, onKill: () => {}, hitMarker: () => {}, onPilotDown: () => {},
 };
+// Seite des Spielers (Rebellen oder Imperium)
+function playerFaction() { return G.player && G.player.faction === IMP ? IMP : REB; }
 
 // ---------------------------------------------------------------- Waffentypen
 //  speed m/s, len/w = Optik, splash = Explosionsradius (tötet Infanterie),
@@ -110,8 +112,8 @@ class SoldierRenderer {
 
 // ---------------------------------------------------------------- Soldaten-KI
 class Soldier {
-  constructor(f, x, z) {
-    this.f = f; this.type = 'sol';
+  constructor(f, x, z, lives = 1) {
+    this.f = f; this.type = 'sol'; this.livesLeft = lives - 1;
     this.pos = new V3(x, heightAt(x, z), z);
     this.yaw = f === REB ? Math.PI : 0;
     this.alive = true; this.fall = 0; this.deadT = 0;
@@ -143,6 +145,15 @@ function targetAlive(t) {
   return t.alive;
 }
 
+// Gefallener Rebell kehrt (solange er Leben übrig hat) in den Graben zurück
+function respawnSoldier(s) {
+  s.livesLeft--;
+  const x = clamp(s.slotX + rand(-8, 8), -TR.len + 3, TR.len - 3);
+  s.slotX = x; s.pos.set(x, 0, trenchZ(x) + s.slotD); s.pos.y = heightAt(s.pos.x, s.pos.z);
+  s.alive = true; s.fall = 0; s.deadT = 0; s.target = null; s.moving = false;
+  s.state = 'hold'; s.stateT = rand(1, 3); s.fireCd = rand(1.5, 3); s.yaw = Math.PI;
+}
+
 function soldierTarget(s) {
   const range2 = 175 * 175;
   const list = s.f === REB ? G.imps : G.rebels;
@@ -154,7 +165,7 @@ function soldierTarget(s) {
     else if (d < d3) { b3 = t; d3 = d; }
   };
   for (const t of list) if (t.alive) consider(t);
-  if (s.f === IMP && targetAlive(G.player)) consider(G.player);
+  if (s.f !== playerFaction() && targetAlive(G.player)) consider(G.player);
   _v1.set(s.pos.x, s.pos.y + 1.6, s.pos.z);
   for (const c of [b1, b2, b3]) {
     if (!c) continue;
@@ -164,10 +175,15 @@ function soldierTarget(s) {
   return null;
 }
 
-function rebelsHoldTrench() { return G.rebels.some(r => r.alive) || (G.player && G.player.lives > 0); }
+function rebelsHoldTrench() { return G.rebels.some(r => r.alive || r.livesLeft > 0) || (playerFaction() === REB && G.player.lives > 0); }
 
 function updateSoldier(s, dt) {
-  if (!s.alive) { if (s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5); s.deadT += dt; return; }
+  if (!s.alive) {
+    if (s.fall < 1) s.fall = Math.min(1, s.fall + dt * 2.5);
+    s.deadT += dt;
+    if (s.livesLeft > 0 && s.deadT > 9) respawnSoldier(s);
+    return;
+  }
   s.thinkCd -= dt;
   if (s.thinkCd <= 0) { s.thinkCd = rand(0.6, 1.3); s.target = soldierTarget(s); }
   if (s.target && !targetAlive(s.target)) s.target = null;
@@ -310,12 +326,12 @@ function updateBolts(dt) {
         if (t >= 0 && t < bestT) { bestT = t; hitObj = s; hitType = 'sol'; }
       }
     }
+    const P = G.player;
+    if (P && P.alive && P.mode === 'foot' && !P.god && b.f !== P.faction) {
+      const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y, P.pos.z, 0.38, 1.8);
+      if (t >= 0 && t < bestT) { bestT = t; hitObj = P; hitType = 'player'; }
+    }
     if (b.f === IMP) {
-      const P = G.player;
-      if (P && P.alive && P.mode === 'foot' && !P.god) {
-        const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y, P.pos.z, 0.38, 1.8);
-        if (t >= 0 && t < bestT) { bestT = t; hitObj = P; hitType = 'player'; }
-      }
       for (const tu of G.turrets) {
         if (!tu.alive) continue;
         const t = segCyl(x0, y0, z0, dx, dy, dz, tu.pos.x, tu.pos.y, tu.pos.z, 1.9, 5);
@@ -362,19 +378,25 @@ function onBoltHit(b, type, obj, p) {
   switch (type) {
     case 'sol': killSoldier(obj, b.owner); if (byPlayer) G.hitMarker(); break;
     case 'player': G.onPlayerHit(b.kind === 0 ? 'Blastertreffer' : 'Explosion'); break;
-    case 'turret': if (K.struct > 0) obj.damage(K.struct); else FX.sparks(p, 4, 0.4, 1, 0.4); break;
-    case 'speeder': if (K.veh > 0) obj.damage(K.veh); else FX.sparks(p, 4, 0.4, 1, 0.4); break;
-    case 'gen': damageGenerator(K.struct); break;
+    case 'turret': if (K.struct > 0) { obj.damage(K.struct, b.owner); if (byPlayer) G.hitMarker(); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
+    case 'speeder': if (K.veh > 0) { obj.damage(K.veh, b.owner); if (byPlayer) G.hitMarker(); } else { FX.sparks(p, 4, 0.4, 1, 0.4); armorMsg(byPlayer); } break;
+    case 'gen': if (byPlayer) G.hitMarker(); damageGenerator(K.struct); break;
     case 'atst': case 'atat': {
       const dmg = type === 'atst' ? K.atst : K.atat;
       if (dmg > 0) { obj.damage(dmg, b.owner); if (byPlayer) G.hitMarker(); }
-      else { FX.sparks(p, 5, 1, 0.8, 0.4); if (byPlayer) G.msg('Blaster wirkungslos gegen Panzerung! Nutze Geschütztürme oder Schneegleiter.', 'armor'); }
+      else { FX.sparks(p, 5, 1, 0.8, 0.4); armorMsg(byPlayer); }
       break;
     }
     case 'ground': if (!K.splash) { FX.impact(p, b.f); SFX.impact(p); } break;
   }
   if (K.splash > 0) explode(p, K.splash, b.f, b.owner, type === 'player');
   else if (type !== 'ground') FX.sparks(p, 4, b.f === REB ? 1 : 0.4, b.f === REB ? 0.4 : 1, 0.3);
+}
+
+function armorMsg(byPlayer) {
+  if (!byPlayer) return;
+  G.msg(playerFaction() === REB ? 'Blaster wirkungslos gegen Panzerung! Nutze Geschütztürme oder Schneegleiter.'
+    : 'Blaster wirkungslos gegen Panzerung! Steig in ein AT-ST oder AT-AT.', 'armor');
 }
 
 function explode(p, radius, f, owner, playerAlreadyHit) {
@@ -388,7 +410,7 @@ function explode(p, radius, f, owner, playerAlreadyHit) {
     if (dx * dx + dy * dy + dz * dz < r2) killSoldier(s, owner);
   }
   const P = G.player;
-  if (f === IMP && !playerAlreadyHit && P && P.alive && P.mode === 'foot' && !P.god) {
+  if (P && f !== P.faction && !playerAlreadyHit && P.alive && P.mode === 'foot' && !P.god) {
     const dx = P.pos.x - p.x, dy = P.pos.y + 0.9 - p.y, dz = P.pos.z - p.z;
     if (dx * dx + dy * dy + dz * dz < r2) G.onPlayerHit('Explosion');
   }
@@ -443,10 +465,11 @@ function atatGeos() {
 
 class ATAT {
   constructor(x, z) {
-    this.type = 'atat'; this.alive = true; this.maxHp = 30; this.hp = this.maxHp;
+    this.type = 'atat'; this.alive = true; this.maxHp = 45; this.hp = this.maxHp;
     this.pos = new V3(x, heightAt(x, z), z); this.yaw = 0; this.phase = rand(0, TAU); this.lastStep = 0;
     this.fireCd = rand(3, 6); this.thinkCd = rand(0, 1); this.target = null; this.tangled = false;
     this.fallT = 0; this.fallDir = 1; this.crashed = false; this.stopDist = rand(215, 235); this.smokeT = 0;
+    this.pilot = null; this.ctrl = { fwd: 0, yaw: 0, pitch: 0, fire: false, aim: new V3() };
     const g = atatGeos();
     this.root = new THREE.Group(); this.root.rotation.order = 'YXZ';
     this.root.add(new THREE.Mesh(g.body, MAT.vehicle));
@@ -485,6 +508,7 @@ class ATAT {
     FX.explosion(this.spheres[2], 5); SFX.boom(this.spheres[2], 3);
     G.msg(tow ? 'AT-AT mit dem Schleppkabel zu Fall gebracht!' : 'AT-AT zerstört!', 'kill');
     if (by === G.player) G.player.kills++;
+    if (this.pilot) G.onPilotDown(this);
   }
   chooseTarget() {
     const dg = Math.hypot(WORLD.gen.x - this.pos.x, WORLD.gen.z - this.pos.z);
@@ -494,7 +518,7 @@ class ATAT {
     for (const t of G.turrets) if (t.alive) { const d = t.pos.distanceTo(this.pos); if (d < bd) { bd = d; bt = t; } }
     if (bt) opts.push(bt);
     for (const s of G.speeders) if (targetAlive(s) && s.pos.distanceTo(this.pos) < 170) { opts.push(s); break; }
-    if (targetAlive(G.player) && G.player.pos.distanceTo(this.pos) < 200) opts.push(G.player);
+    if (playerFaction() === REB && targetAlive(G.player) && G.player.pos.distanceTo(this.pos) < 200) opts.push(G.player);
     const reb = G.rebels.filter(r => r.alive && Math.abs(r.pos.x - this.pos.x) < 60 && r.pos.distanceTo(this.pos) < 200);
     if (reb.length) opts.push(pick(reb));
     this.target = opts.length ? pick(opts) : null;
@@ -518,25 +542,16 @@ class ATAT {
       }
       return;
     }
+    if (this.pilot) { this.updatePilot(dt); return; }
     this.thinkCd -= dt;
     if (this.thinkCd <= 0) { this.thinkCd = rand(2, 4); this.chooseTarget(); }
     if (this.target && !targetAlive(this.target)) this.target = null;
     const dx = WORLD.gen.x - this.pos.x, dz = WORLD.gen.z - this.pos.z, dg = Math.hypot(dx, dz);
     if (!this.tangled && dg > this.stopDist) {
       this.yaw += angDiff(this.yaw, Math.atan2(dx, dz)) * Math.min(1, dt * 0.3);
-      const sp = 2.1 * dt;
-      this.pos.x += Math.sin(this.yaw) * sp; this.pos.z += Math.cos(this.yaw) * sp;
-      this.pos.y = heightAt(this.pos.x, this.pos.z);
-      this.phase += dt * 1.1;
-      const step = Math.floor(this.phase / (Math.PI / 2));
-      if (step !== this.lastStep) { this.lastStep = step; SFX.thump(this.pos); }
+      this.walk(2.1, dt);
     }
-    for (const L of this.legs) {
-      const s = Math.sin(this.phase + L.off), c = Math.cos(this.phase + L.off);
-      L.hip.rotation.x = 0.22 * s;
-      L.knee.rotation.x = -0.32 * Math.max(0, c);
-    }
-    this.root.position.y = this.pos.y + Math.sin(this.phase * 2) * 0.15;
+    this.animate();
     // Kopf zum Ziel drehen
     let hy = 0, hp = 0;
     if (this.target) {
@@ -557,6 +572,42 @@ class ATAT {
         for (let i = 0; i < 2; i++) { this.muzzle(i, _v1); fireBolt(2, IMP, _v1, _v2, 0.012, this); }
       }
     }
+  }
+  walk(speed, dt) {
+    const sp = speed * dt;
+    this.pos.x = clamp(this.pos.x + Math.sin(this.yaw) * sp, -440, 440);
+    this.pos.z = clamp(this.pos.z + Math.cos(this.yaw) * sp, -760, 240);
+    const gd = Math.hypot(this.pos.x - WORLD.gen.x, this.pos.z - WORLD.gen.z);
+    if (gd < 24) { this.pos.x = WORLD.gen.x + (this.pos.x - WORLD.gen.x) / gd * 24; this.pos.z = WORLD.gen.z + (this.pos.z - WORLD.gen.z) / gd * 24; }
+    this.pos.y = heightAt(this.pos.x, this.pos.z);
+    this.phase += dt * 1.1 * speed / 2.1;
+    const step = Math.floor(this.phase / (Math.PI / 2));
+    if (step !== this.lastStep) { this.lastStep = step; SFX.thump(this.pos); }
+  }
+  // Vom Spieler gesteuert: ctrl = { fwd, yaw, pitch, fire, aim }
+  updatePilot(dt) {
+    const c = this.ctrl;
+    if (!this.tangled) {
+      this.yaw += clamp(angDiff(this.yaw, c.yaw), -0.4 * dt, 0.4 * dt);
+      if (Math.abs(c.fwd) > 0.05) this.walk(c.fwd * (c.fwd > 0 ? 3.4 : 1.6), dt);
+    }
+    this.animate();
+    this.head.rotation.y = clamp(angDiff(this.yaw, c.yaw), -0.7, 0.7);
+    this.head.rotation.x = clamp(-c.pitch, -0.35, 0.45);
+    this.syncMesh();
+    this.fireCd -= dt;
+    if (c.fire && this.fireCd <= 0 && !this.tangled) {
+      this.fireCd = 1.3;
+      for (let i = 0; i < 2; i++) { this.muzzle(i, _v1); fireBolt(2, IMP, _v1, c.aim, 0.004, this.pilot); }
+    }
+  }
+  animate() {
+    for (const L of this.legs) {
+      const s = Math.sin(this.phase + L.off), c = Math.cos(this.phase + L.off);
+      L.hip.rotation.x = 0.22 * s;
+      L.knee.rotation.x = -0.32 * Math.max(0, c);
+    }
+    this.root.position.y = this.pos.y + Math.sin(this.phase * 2) * 0.15;
   }
 }
 
@@ -591,6 +642,7 @@ class ATST {
     this.pos = new V3(x, heightAt(x, z), z); this.yaw = 0; this.phase = rand(0, TAU);
     this.goal = new V3(x, 0, trenchZ(x) - rand(35, 60)); this.goalT = 0;
     this.fireCd = rand(2, 4); this.thinkCd = rand(0, 1); this.target = null; this.fallT = 0; this.smokeT = 0; this.fallDir = 1;
+    this.pilot = null; this.ctrl = { fwd: 0, yaw: 0, pitch: 0, fire: false, aim: new V3() }; this.gunI = 0;
     const g = atstGeos();
     this.root = new THREE.Group(); this.root.rotation.order = 'YXZ';
     this.head = new THREE.Group(); this.head.position.set(0, 6.2, 0); this.head.add(new THREE.Mesh(g.head, MAT.vehicle));
@@ -621,6 +673,7 @@ class ATST {
       FX.explosion(this.spheres[0], 4); SFX.boom(this.spheres[0], 2.5);
       G.msg('AT-ST zerstört!', 'kill');
       if (by === G.player) G.player.kills++;
+      if (this.pilot) G.onPilotDown(this);
     }
   }
   chooseTarget() {
@@ -630,7 +683,7 @@ class ATST {
       const dx = t.pos.x - this.pos.x, dz = t.pos.z - this.pos.z, d = (dx * dx + dz * dz) * bias;
       if (d < bd) { aimPoint(t, _v2); if (lineOfSight(_v1, _v2)) { bd = d; best = t; } }
     };
-    if (targetAlive(G.player)) test(G.player, 0.8);
+    if (playerFaction() === REB && targetAlive(G.player)) test(G.player, 0.8);
     for (const t of G.turrets) if (t.alive) test(t, 0.7);
     for (const r of G.rebels) if (r.alive && Math.abs(r.pos.x - this.pos.x) < 150) test(r, 1);
     this.target = best;
@@ -647,6 +700,7 @@ class ATST {
       if (this.smokeT <= 0) { this.smokeT = 0.25; FX.smokeColumn(_v1.set(this.pos.x, this.pos.y + 1, this.pos.z), 0.8); }
       return;
     }
+    if (this.pilot) { this.updatePilot(dt); return; }
     this.thinkCd -= dt;
     if (this.thinkCd <= 0) { this.thinkCd = rand(1, 2); this.chooseTarget(); }
     if (this.target && !targetAlive(this.target)) this.target = null;
@@ -668,13 +722,7 @@ class ATST {
       this.phase += dt * 3.2;
     }
     this.yaw += angDiff(this.yaw, want) * Math.min(1, dt * 1.5);
-    for (const L of this.legs) {
-      const s = d > 2 ? Math.sin(this.phase + L.off) : 0, c = d > 2 ? Math.cos(this.phase + L.off) : 0;
-      L.th.rotation.x = -0.45 + 0.35 * s;
-      L.kn.rotation.x = 0.95 + 0.35 * Math.max(0, c);
-      L.an.rotation.x = -(L.th.rotation.x + L.kn.rotation.x);
-    }
-    this.head.position.y = 6.2 + Math.abs(Math.sin(this.phase)) * 0.15;
+    this.animate(d > 2);
     this.sync();
     this.fireCd -= dt;
     if (this.target && this.fireCd <= 0) {
@@ -686,6 +734,38 @@ class ATST {
           fireBolt(1, IMP, _v1, _v2, G.diff.spread * 0.8, this);
         }
       }
+    }
+  }
+  animate(moving) {
+    for (const L of this.legs) {
+      const s = moving ? Math.sin(this.phase + L.off) : 0, c = moving ? Math.cos(this.phase + L.off) : 0;
+      L.th.rotation.x = -0.45 + 0.35 * s;
+      L.kn.rotation.x = 0.95 + 0.35 * Math.max(0, c);
+      L.an.rotation.x = -(L.th.rotation.x + L.kn.rotation.x);
+    }
+    this.head.position.y = 6.2 + Math.abs(Math.sin(this.phase)) * 0.15;
+  }
+  // Vom Spieler gesteuert
+  updatePilot(dt) {
+    const c = this.ctrl;
+    this.yaw += clamp(angDiff(this.yaw, c.yaw), -1.6 * dt, 1.6 * dt);
+    const sp = c.fwd * (c.fwd > 0 ? 4.6 : 2.4);
+    const moving = Math.abs(sp) > 0.05;
+    if (moving) {
+      this.pos.x = clamp(this.pos.x + Math.sin(this.yaw) * sp * dt, -440, 440);
+      this.pos.z = clamp(this.pos.z + Math.cos(this.yaw) * sp * dt, -760, 240);
+      const gd = Math.hypot(this.pos.x - WORLD.gen.x, this.pos.z - WORLD.gen.z);
+      if (gd < 17) { this.pos.x = WORLD.gen.x + (this.pos.x - WORLD.gen.x) / gd * 17; this.pos.z = WORLD.gen.z + (this.pos.z - WORLD.gen.z) / gd * 17; }
+      this.pos.y = heightAt(this.pos.x, this.pos.z);
+      this.phase += dt * 3.2 * sp / 2.6;
+    }
+    this.animate(moving);
+    this.sync();
+    this.fireCd -= dt;
+    if (c.fire && this.fireCd <= 0) {
+      this.fireCd = 0.38; this.gunI ^= 1;
+      _v1.set(this.gunI ? -0.35 : 0.35, -0.1, 2.95).applyMatrix4(this.head.matrixWorld);
+      fireBolt(1, IMP, _v1, c.aim, 0.003, this.pilot);
     }
   }
 }
@@ -726,11 +806,12 @@ class Turret {
   }
   apply() { this.head.rotation.y = this.aimYaw; this.barrel.rotation.x = -this.aimPitch; this.root.updateMatrixWorld(true); }
   muzzle(out) { this.gun ^= 1; return out.set(this.gun ? 0.35 : -0.35, 0, 3.1).applyMatrix4(this.barrel.matrixWorld); }
-  damage(d) {
+  damage(d, by) {
     if (!this.alive) return;
     this.hp -= d; FX.sparks(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 5, 1, 0.6, 0.2);
     if (this.hp <= 0) {
       this.alive = false;
+      if (by === G.player) G.player.kills++;
       FX.explosion(_v1.set(this.pos.x, this.pos.y + 4, this.pos.z), 4); SFX.boom(this.pos, 2);
       this.head.visible = false; this.root.scale.y = 0.55;
       G.msg('Ein Geschützturm wurde zerstört!', 'turret');
@@ -749,6 +830,7 @@ class Turret {
     for (const w of G.atsts) if (w.alive) consider(w, 200, 0.5);
     for (const w of G.atats) if (w.alive && !w.tangled) consider(w, 200, 0.7);
     for (const s of G.imps) if (s.alive && Math.abs(s.pos.x - this.pos.x) < 150) consider(s, 140, 1.2);
+    if (playerFaction() === IMP && targetAlive(G.player)) consider(G.player, 140, 1.1);
     this.target = best;
   }
   update(dt) {
@@ -771,7 +853,7 @@ class Turret {
     this.apply();
     this.fireCd -= dt;
     if (this.fireCd <= 0 && Math.abs(dy) < 0.06) {
-      this.fireCd = rand(2.2, 3.4);
+      this.fireCd = rand(2.9, 4.2);
       this.muzzle(_v1);
       fireBolt(3, REB, _v1, _v2, 0.012, this);
     }
@@ -859,12 +941,13 @@ class Speeder {
     _v2.copy(_v1).addScaledVector(dir, 200);
     fireBolt(4, REB, _v1, _v2, owner === G.player ? 0.002 : 0.02, owner);
   }
-  damage(d) {
+  damage(d, by) {
     if (!this.alive || this.mode === 'tow' || this.mode === 'parked' || this.mode === 'gone' || this.mode === 'crash') return;
     this.hp -= d;
     FX.sparks(this.pos, 6, 1, 0.7, 0.3);
     if (this.hp <= 0) {
       const wasPlayer = this.mode === 'player';
+      if (by === G.player) G.player.kills++;
       this.mode = 'crash'; this.alive = false;
       FX.explosion(this.pos, 2.5); SFX.boom(this.pos, 1.5);
       G.msg(wasPlayer ? 'Dein Schneegleiter wurde abgeschossen!' : 'Ein Schneegleiter wurde abgeschossen!', 'speeder');
@@ -908,26 +991,29 @@ class Speeder {
       A.retarget = rand(12, 20);
       const opts = [];
       G.atsts.forEach(w => { if (w.alive) opts.push(w, w); });
-      if (G.time > 150 && Math.random() < 0.12) G.atats.forEach(w => { if (w.alive && !w.tangled) opts.push(w); });
       const troops = G.imps.filter(s => s.alive);
       if (troops.length) opts.push(pick(troops), pick(troops));
+      const atats = G.atats.filter(w => w.alive && !w.tangled);
+      if (atats.length && (!opts.length || Math.random() < 0.3)) opts.push(pick(atats));
       A.target = opts.length ? pick(opts) : null;
+      // Schleppkabel nur selten (sonst Beschuss mit Lasern)
+      A.tow = !!A.target && A.target.type === 'atat' && G.time > 150 && Math.random() < 0.15;
       A.state = 'approach';
     }
     let wantYaw = this.yaw, wantPitch = 0.1;
     const t = A.target;
     if (t) {
-      const isAtat = t.type === 'atat';
-      const tx = t.pos.x, tz = t.pos.z, ty = t.pos.y + (isAtat ? 6 : t.type === 'atst' ? 6.5 : 1);
+      const isAtat = t.type === 'atat' && A.tow, strafeAtat = t.type === 'atat' && !A.tow;
+      const tx = t.pos.x, tz = t.pos.z, ty = t.pos.y + (isAtat ? 6 : strafeAtat ? 17 : t.type === 'atst' ? 6.5 : 1);
       const dx = tx - this.pos.x, dz = tz - this.pos.z, dh = Math.hypot(dx, dz);
       if (A.state === 'approach') {
-        const alt = dh > 220 ? Math.max(ty + 25, heightAt(this.pos.x, this.pos.z) + 25) : ty + (isAtat ? 0 : 2);
+        const alt = dh > 220 ? Math.max(ty + 25, heightAt(this.pos.x, this.pos.z) + 25) : ty + (isAtat ? 0 : strafeAtat ? 8 : 2);
         wantYaw = Math.atan2(dx, dz);
         wantPitch = clamp(Math.atan2(alt - this.pos.y, Math.max(dh, 1)), -0.5, 0.5);
         if (isAtat && dh < 40 && Math.abs(this.pos.y - ty) < 10) { this.startTow(t); return; }
         _v1.set(dx, ty - this.pos.y, dz).normalize();
         if (!isAtat && dh < 230 && this.forward(_v2).dot(_v1) > 0.985) this.fire(_v1, this);
-        if (dh < (isAtat ? 15 : 35)) { A.state = 'extend'; A.t = rand(2.5, 4); }
+        if (dh < (isAtat ? 15 : strafeAtat ? 60 : 35)) { A.state = 'extend'; A.t = rand(2.5, 4); }
       } else {
         wantPitch = 0.25; A.t -= dt;
         if (A.t <= 0) A.state = 'approach';
