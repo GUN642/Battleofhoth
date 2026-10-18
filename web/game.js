@@ -24,6 +24,7 @@ const SETTINGS = [
   { key: 'bunkerGuns', label: 'Geschütze auf dem Bunker', min: 0, max: 2, def: 2, map: [1] },
   { key: 'lives', group: 'Spiel', label: 'Deine Leben', min: 1, max: 10, def: 3 },
   { key: 'diff', label: 'Schwierigkeit', min: 0, max: 2, def: 1, names: ['Leicht', 'Normal', 'Schwer'] },
+  { key: 'aim', label: 'Zielhilfe', min: 0, max: 2, def: 1, names: ['Aus', 'Controller & Touch', 'Immer'], wide: true },
   { key: 'sens', label: 'Blick-Empfindlichkeit', min: 1, max: 10, def: 5 },
   { key: 'gfx', label: 'Grafik', min: 0, max: 2, def: 1, names: ['Niedrig', 'Mittel', 'Hoch'] },
   { key: 'padLayout', label: 'Controller-Tasten', min: 0, max: 1, def: 0, names: ['Nintendo', 'Xbox / PlayStation'], wide: true },
@@ -300,7 +301,7 @@ camera.add(gun);
 const P = G.player = {
   type: 'player', faction: REB, mode: 'spectate', alive: false, pos: new V3(), yaw: 0, pitch: 0, vy: 0, onGround: true, walker: null,
   lives: 0, kills: 0, heat: 0, overheat: 0, fireCd: 0, respawnT: 0, turret: null, speeder: null,
-  weapon: 0, heats: [0, 0, 0, 0], overheats: [0, 0, 0, 0], nades: NADES_PER_LIFE, switchT: 0, spin: 0, charges: 1,
+  weapon: 0, heats: [0, 0, 0, 0], overheats: [0, 0, 0, 0], nades: NADES_PER_LIFE, switchT: 0, spin: 0, charges: 1, gunship: null,
   bob: 0, recoil: 0, god: 0, deathCause: '',
   exitTurret(destroyed) {
     const t = this.turret; if (!t) return;
@@ -312,6 +313,16 @@ const P = G.player = {
     this.yaw = t.aimYaw - Math.PI; this.pitch = 0;
     if (destroyed) G.msg('Du wurdest aus dem zerstörten Turm geschleudert!', 'turret2');
   },
+  // Bordschütze verlässt das Kanonenboot (springt am Boden darunter ab)
+  exitGunner(denied) {
+    const sp = this.gunship; if (!sp) return;
+    if (sp.gunner === this) sp.gunner = null;
+    this.gunship = null; this.mode = 'foot';
+    this.pos.set(sp.hc.x, 0, sp.hc.z); pushOutWorld(this.pos, 0.6); this.pos.y = heightAt(this.pos.x, this.pos.z);
+    this.vy = 0; this.onGround = true; this.pitch = 0;
+    if (denied) G.msg('Am Bordgeschütz sitzt schon jemand.', 'deny');
+  },
+  gunshipDown(sp) { this.gunship = null; killPlayer('Kanonenboot abgeschossen', sp.hc); },
   speederDestroyed() { const sp = this.speeder; this.speeder = null; killPlayer((sp ? sp.label : 'Schneegleiter') + ' abgeschossen', sp ? sp.pos : null); },
   exitWalker() {
     const w = this.walker; if (!w) return;
@@ -347,7 +358,7 @@ function spawnPlayer(first) {
   P.pos.y = heightAt(P.pos.x, P.pos.z);
   P.pitch = 0.03; P.vy = 0; P.mode = 'foot'; P.alive = true; P.heat = 0; P.overheat = 0;
   P.heats.fill(0); P.overheats.fill(0); P.nades = NADES_PER_LIFE; P.switchT = 0; P.charges = 1;
-  P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null; P.walker = null;
+  P.god = first ? 0 : 2.5; P.turret = null; P.speeder = null; P.walker = null; P.gunship = null;
   input.zoomToggle = false;
   $('dead').classList.add('hidden');
 }
@@ -369,6 +380,7 @@ function killPlayer(cause, where) {
   if (P.mode === 'turret' && P.turret) P.turret.manned = false;
   if (P.speeder && P.speeder.mode === 'player') { P.speeder.mode = 'gone'; P.speeder.respawnT = 3; P.speeder.alive = false; }
   if (P.walker) { P.walker.pilot = null; P.walker.ctrl.fire = false; }
+  if (P.gunship) { if (P.gunship.gunner === P) P.gunship.gunner = null; P.gunship = null; }
   P.alive = false; P.lives--; P.deathCause = cause;
   P.mode = 'dead'; P.respawnT = 4; P.turret = null; P.speeder = null; P.walker = null; input.zoomToggle = false;
   if (where) P.pos.copy(where);
@@ -505,7 +517,7 @@ function resetInput() {
 }
 
 // ---------------------------------------------------------------- Zielen
-const _fwd = new V3(), _tmp = new V3(), _tmp2 = new V3();
+const _fwd = new V3(), _tmp = new V3(), _tmp2 = new V3(), _tmp3 = new V3();
 function camForward(out) { const cp = Math.cos(P.pitch); return out.set(-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp); }
 // Entfernung bis zum anvisierten Punkt (damit Schüsse aus dem Lauf genau im Fadenkreuz landen)
 function aimDistance(o, d, maxD) {
@@ -581,11 +593,11 @@ function nearestTowable(sp) {
 let zoomT = 0;
 const BASE_FOV = 72;
 function updateZoom(dt) {
-  const can = (P.mode === 'foot' && !WEAPONS[P.weapon].nade) || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder';
+  const can = (P.mode === 'foot' && !WEAPONS[P.weapon].nade) || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'speeder' || P.mode === 'gunner';
   if (!can) input.zoomToggle = false;
   const want = can && (input.zoomHeld || input.zoomToggle || PAD.zoom());
   zoomT = clamp(zoomT + (want ? dt * 7 : -dt * 7), 0, 1);
-  const zf = P.mode === 'foot' ? WEAPONS[P.weapon].zoom : P.mode === 'speeder' ? 52 : 22;
+  const zf = P.mode === 'foot' ? WEAPONS[P.weapon].zoom : P.mode === 'speeder' ? 52 : P.mode === 'gunner' ? 38 : 22;
   const fov = lerp(BASE_FOV, zf, smooth(0, 1, zoomT));
   if (Math.abs(fov - camera.fov) > 0.01) {
     camera.fov = fov; camera.updateProjectionMatrix();
@@ -594,13 +606,94 @@ function updateZoom(dt) {
   }
 }
 
+// ---------------------------------------------------------------- Zielhilfe
+//  Fadenkreuz wird über Gegnern langsamer und folgt ihnen sanft; ist es auf dem Ziel ("lock"),
+//  fliegen die Schüsse genau dorthin. Gedacht für Controller (z. B. Joy-Con) und Touch.
+const AA = { t: null, scan: 0, lock: false, zone: false, pt: new V3(), dir: new V3() };
+function aimAssistOn() { return CFG.aim === 2 || (CFG.aim === 1 && (PAD.connected || IS_TOUCH)); }
+function aaPoint(t, out) {
+  if (t.type === 'sol' || t.type === 'player') return out.set(t.pos.x, t.pos.y + (t.ah || 1.65) * 0.78, t.pos.z);
+  if (t.type === 'atst' || t.type === 'atat') return out.copy(t.spheres[0]);
+  if (t.type === 'turret') return out.set(t.pos.x, t.pos.y + t.hy + 0.8, t.pos.z);
+  if (t.type === 'speeder') return out.copy(t.hc);
+  return out.copy(t.pos);
+}
+function aaCandidates(veh) {
+  const L = [];
+  if (P.faction === REB) {
+    for (const s of G.imps) if (s.alive) L.push(s);
+    if (veh) { for (const w of G.atsts) if (w.alive) L.push(w); for (const w of G.atats) if (w.alive && !w.tangled) L.push(w); }
+  } else {
+    for (const s of G.rebels) if (s.alive) L.push(s);
+    if (veh) { for (const t of G.turrets) if (t.alive) L.push(t); for (const sp of G.speeders) if (targetAlive(sp)) L.push(sp); }
+  }
+  for (const pl of G.players) if (pl !== P && pl.faction !== P.faction && targetAlive(pl)) L.push(pl);
+  return L;
+}
+// Winkelgröße der Fangzone um ein Ziel in Entfernung d
+function aaCone(d) { return (Math.atan(1.6 / d) + 0.035) * (camera.fov / BASE_FOV); }
+// Vor der Blickbewegung: Ziel suchen; Rückgabe = Faktor für die Blickgeschwindigkeit
+function aimAssistPre(dt, range) {
+  AA.lock = false; AA.zone = false;
+  const modeOk = P.mode === 'turret' || P.mode === 'walker' || P.mode === 'gunner' || P.mode === 'speeder' || (P.mode === 'foot' && !WEAPONS[P.weapon].nade);
+  if (!aimAssistOn() || !modeOk) { AA.t = null; return 1; }
+  const o = camera.position; camForward(_fwd);
+  AA.scan -= dt;
+  if (AA.scan <= 0) {
+    AA.scan = 0.12; AA.t = null;
+    let best = 1.6, bt = null;
+    for (const t of aaCandidates(P.mode !== 'foot')) {
+      aaPoint(t, _tmp); _tmp.sub(o);
+      const d = _tmp.length(); if (d < 1.5 || d > range) continue;
+      const sc = Math.acos(clamp(_tmp.dot(_fwd) / d, -1, 1)) / aaCone(d);
+      if (sc < best) { best = sc; bt = t; }
+    }
+    if (bt && lineOfSight(o, aaPoint(bt, _tmp))) AA.t = bt;
+  }
+  if (!AA.t || !targetAlive(AA.t)) { AA.t = null; return 1; }
+  aaPoint(AA.t, AA.pt); AA.dir.subVectors(AA.pt, o);
+  const d = AA.dir.length(), ang = Math.acos(clamp(AA.dir.dot(_fwd) / d, -1, 1)), cone = aaCone(d);
+  AA.zone = ang < cone * 1.6; AA.lock = ang < cone * 0.7;
+  return AA.zone ? (CFG.aim === 2 ? 0.4 : 0.55) : 1;
+}
+// Fadenkreuz sanft zum Ziel ziehen (stärker, während man zielt, läuft oder feuert)
+function aimAssistPull(dt, active) {
+  if (!AA.zone) return;
+  const d = AA.dir.length();
+  const wantYaw = Math.atan2(-AA.dir.x, -AA.dir.z), wantPitch = Math.asin(clamp(AA.dir.y / d, -1, 1));
+  const k = Math.min(1, dt * (CFG.aim === 2 ? 7 : 4.5) * (active ? 1 : 0.45));
+  P.yaw += angDiff(P.yaw, wantYaw) * k; P.pitch += (wantPitch - P.pitch) * k;
+}
+function assistAim(out) { if (!AA.lock || !AA.t) return false; out.copy(AA.pt); return true; }
+
+// Freies Bordgeschütz eines Kanonenboots in der Nähe (geparkt oder tief schwebend)
+function nearestGunship() {
+  let best = null, bd = 10;
+  for (const sp of G.speeders) {
+    if (!sp.laat || !sp.alive || sp.gunner || sp === P.speeder) continue;
+    if (sp.mode !== 'parked' && !((sp.mode === 'player' || sp.mode === 'remote' || sp.mode === 'ai') && sp.pos.y - heightAt(sp.pos.x, sp.pos.z) < 9)) continue;
+    const d = Math.hypot(sp.hc.x - P.pos.x, sp.hc.z - P.pos.z);
+    if (d < bd) { bd = d; best = sp; }
+  }
+  return best;
+}
+function boardGunner(sp) {
+  P.mode = 'gunner'; P.gunship = sp; sp.gunner = P; sp.waitT = 0;
+  P.yaw = sp.yaw - Math.PI / 2; P.pitch = -0.25; input.zoomToggle = false;
+  const pilot = sp.mode === 'player' || sp.mode === 'remote';
+  G.msg(pilot ? 'Du bist Bordschütze – dein Mitspieler fliegt. Die Laser explodieren schon knapp neben dem Ziel.'
+    : 'Bordschütze! Ein Klonpilot startet gleich – oder ein Mitspieler steigt als Pilot ein.', 'gunIn');
+}
+
 function updatePlayer(dt) {
   updateZoom(dt);
   const sens = 0.00045 * CFG.sens * (IS_TOUCH ? 1.2 : 1) * (camera.fov / BASE_FOV);
   // Controller: rechter Stick = Blick (wie Mausbewegung in Pixeln pro Sekunde)
   const pa = PAD.axes();
   input.lookDX += pa.rx * dt * 1150; input.lookDY += pa.ry * dt * 800;
-  const lookX = input.lookDX * sens, lookY = input.lookDY * sens;
+  const aaSlow = aimAssistPre(dt, P.mode === 'foot' ? WEAPONS[P.weapon].range : 450);
+  const lookActive = Math.abs(input.lookDX) + Math.abs(input.lookDY) > 0.5;
+  const lookX = input.lookDX * sens * aaSlow, lookY = input.lookDY * sens * aaSlow;
   input.lookDX = input.lookDY = 0;
   const k = input.keys;
   const fwdIn = clamp((k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + input.joyY - pa.ly, -1, 1);
@@ -610,13 +703,16 @@ function updatePlayer(dt) {
   if (PAD.take('x')) input.zoomToggle = !input.zoomToggle;
   if (PAD.take('start') || PAD.take('select')) { pause(); return; }
   const padY = PAD.take('y');
-  const use = input.use || PAD.take('b'), jump = input.jump || PAD.take('a'), harpoon = input.harpoon || (padY && P.mode === 'speeder');
+  // In der Nähe eines Kanonenboots: F / Y / Touch-Knopf = als Bordschütze einsteigen
+  const gsNear = P.mode === 'foot' && MAP.id === 'geonosis' ? nearestGunship() : null;
+  hud.gsNear = !!gsNear;
+  const use = input.use || PAD.take('b'), jump = input.jump || PAD.take('a'), harpoon = input.harpoon || (padY && (P.mode === 'speeder' || !!gsNear));
   // Waffenwahl: 1-4, Mausrad, Y oder Steuerkreuz links/rechts, Antippen in der Waffenleiste
   const dR = PAD.take('dright'), dL = PAD.take('dleft');
   if (P.mode === 'foot') {
     if (input.weaponSel >= 0) selectWeapon(input.weaponSel);
     if (input.weaponStep) selectWeapon(P.weapon + Math.sign(input.weaponStep));
-    if (padY || dR) selectWeapon(P.weapon + 1);
+    if ((padY && !gsNear) || dR) selectWeapon(P.weapon + 1);
     if (dL) selectWeapon(P.weapon - 1);
   }
   input.weaponSel = -1; input.weaponStep = 0;
@@ -632,6 +728,7 @@ function updatePlayer(dt) {
   P.switchT = Math.max(0, P.switchT - dt);
   P.recoil = Math.max(0, P.recoil - dt * 6);
   const prompts = [];
+  if (P.mode !== 'speeder' || firing) aimAssistPull(dt, lookActive || firing || Math.abs(fwdIn) + Math.abs(strIn) > 0.1);
 
   if (P.mode === 'dead') {
     P.respawnT -= dt;
@@ -705,13 +802,16 @@ function updatePlayer(dt) {
       if (P.heat >= 1) { P.heat = 1; P.overheat = W.cool; G.msg(weaponName(P.weapon, P.faction) + ' überhitzt!', 'heat'); }
       camera.updateMatrixWorld(true);
       camForward(_fwd);
-      const dist = aimDistance(camera.position, _fwd, W.range);
-      _tmp2.copy(camera.position).addScaledVector(_fwd, dist);
+      if (!assistAim(_tmp2)) { const dist = aimDistance(camera.position, _fwd, W.range); _tmp2.copy(camera.position).addScaledVector(_fwd, dist); }
       if (zoomT > 0.85 && W.scope) _tmp.copy(camera.position).addScaledVector(_fwd, 0.6).y -= 0.08;
       else gunTip.getWorldPosition(_tmp);
       fireBolt(W.kind, P.faction, _tmp, _tmp2, lerp(W.hip, W.ads, z), P);
     }
     const u = nearestUsable();
+    if (gsNear) {
+      prompts.push('[F] Als Bordschütze einsteigen');
+      if (harpoon) { boardGunner(gsNear); setPrompt(prompts); return; }
+    }
     if (!u) endorUse(prompts, use);
     if (u) {
       prompts.push(u.type === 'turret' ? (u.roof ? '[E] Bunkergeschütz bemannen' : '[E] Geschützturm bemannen')
@@ -749,13 +849,39 @@ function updatePlayer(dt) {
       P.fireCd = 0.36; P.heat += 0.09;
       if (P.heat >= 1) { P.heat = 1; P.overheat = 2; G.msg('Geschütz überhitzt!', 'heat'); }
       camera.updateMatrixWorld(true);
-      const dist = aimDistance(camera.position, _fwd, 400);
-      _tmp2.copy(camera.position).addScaledVector(_fwd, dist);
+      if (!assistAim(_tmp2)) { const dist = aimDistance(camera.position, _fwd, 400); _tmp2.copy(camera.position).addScaledVector(_fwd, dist); }
       t.muzzle(_tmp);
       fireBolt(3, REB, _tmp, _tmp2, 0.003, P);
     }
     prompts.push('[E] Turm verlassen');
     if (use) P.exitTurret(false);
+  } else if (P.mode === 'gunner') {
+    // Bordschütze: freier Blick, schießt aus dem Kugelturm auf der Seite, in die man zielt
+    const sp = P.gunship;
+    if (!sp || !sp.alive || sp.mode === 'gone' || sp.mode === 'crash') {
+      P.exitGunner(false);
+      if (sp && sp.mode === 'gone') G.msg('Das Kanonenboot ist gelandet – du bist abgesprungen.', 'gunOut');
+      setPrompt(prompts); return;
+    }
+    P.yaw -= lookX; P.pitch = clamp(P.pitch - lookY, -1.2, 0.7);
+    camForward(_fwd);
+    sp.ballTurret(_fwd, _tmp);
+    _tmp3.set(_tmp.x - sp.hc.x, 0, _tmp.z - sp.hc.z).normalize();
+    camera.position.copy(_tmp).addScaledVector(_tmp3, 1.4); camera.position.y += 0.7;
+    camera.rotation.set(P.pitch, P.yaw, 0);
+    gun.visible = false;
+    if (firing && P.fireCd <= 0 && P.overheat <= 0) {
+      P.fireCd = 0.2; P.heat += 0.055;
+      if (P.heat >= 1) { P.heat = 1; P.overheat = 2; G.msg('Bordgeschütz überhitzt!', 'heat'); }
+      camera.updateMatrixWorld(true);
+      if (!assistAim(_tmp2)) { const dist = aimDistance(camera.position, _fwd, 450); _tmp2.copy(camera.position).addScaledVector(_fwd, dist); }
+      _tmp.addScaledVector(_fwd, 1.2);
+      fireBolt(8, REB, _tmp, _tmp2, 0.004, P);
+    }
+    prompts.push(sp.mode === 'parked' ? 'Warte auf den Piloten …' : 'Bordschütze – Ziel frei');
+    prompts.push('[E] Abspringen');
+    if (use) P.exitGunner(false);
+    P.pos.copy(sp.hc);
   } else if (P.mode === 'walker') {
     const w = P.walker, isAtat = w.type === 'atat';
     // Drehen per Blick oder Joystick/A-D, Laufen per Joystick/W-S
@@ -772,6 +898,7 @@ function updatePlayer(dt) {
     camera.updateMatrixWorld(true);
     const dist = aimDistance(camera.position, _fwd, 450);
     w.ctrl.aim.copy(camera.position).addScaledVector(_fwd, dist);
+    assistAim(w.ctrl.aim);
     w.ctrl.fwd = fwdIn; w.ctrl.yaw = P.yaw + Math.PI; w.ctrl.pitch = P.pitch; w.ctrl.fire = firing;
     P.heat = clamp(w.fireCd / (isAtat ? 1.3 : 0.38), 0, 1); P.overheat = 0;
     P.pos.copy(w.pos);
@@ -808,7 +935,7 @@ function updatePlayer(dt) {
     if (camera.position.y < ch) camera.position.y = ch;
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = false;
-    if (firing) sp.fire(_fwd, P);
+    if (firing) { if (assistAim(_tmp2)) sp.fire(AA.dir.copy(_tmp2).sub(sp.hc).normalize(), P); else sp.fire(_fwd, P); }
     const a = sp.laat ? null : nearestTowable(sp);
     const alt0 = sp.pos.y - heightAt(sp.pos.x, sp.pos.z);
     if (sp.laat) {
@@ -848,13 +975,14 @@ function setPrompt(list) {
   const el = $('prompt'); el.innerHTML = '';
   for (const p of list) {
     const sp = document.createElement('span');
-    sp.textContent = PAD.connected ? p.replace('[E]', 'Ⓑ').replace('[F]', 'Ⓨ') : IS_TOUCH ? p.replace('[E]', 'E:').replace('[F]', 'KABEL:') : p;
+    sp.textContent = PAD.connected ? p.replace('[E]', 'Ⓑ').replace('[F]', 'Ⓨ') : IS_TOUCH ? p.replace('[E]', 'E:').replace('[F]', hud.harpLabel + ':') : p;
     el.append(sp);
   }
 }
 
 // ---------------------------------------------------------------- HUD
 let hudT = 0, radarT = 0, lastWeaponKey = '#', wnameT = 0;
+const hud = { gsNear: false, harpLabel: 'KABEL' };
 $('weapons').addEventListener('click', (e) => { const sl = e.target.closest('.wslot'); if (sl && state === 'playing') input.weaponSel = +sl.dataset.w; });
 const radarCtx = $('radar').getContext('2d');
 function updateHUD(dt) {
@@ -862,7 +990,7 @@ function updateHUD(dt) {
   const heat = $('heat');
   $('heatArc').style.strokeDashoffset = (100 - P.heat * 100).toFixed(1);
   heat.classList.toggle('over', P.overheat > 0);
-  heat.style.opacity = (P.mode === 'foot' ? !WEAPONS[P.weapon].nade : P.mode === 'turret' || P.mode === 'walker') && P.heat > 0.01 ? '1' : '0';
+  heat.style.opacity = (P.mode === 'foot' ? !WEAPONS[P.weapon].nade : P.mode === 'turret' || P.mode === 'walker' || P.mode === 'gunner') && P.heat > 0.01 ? '1' : '0';
   // Waffenleiste
   const wb = $('weapons'), onFoot = P.mode === 'foot';
   wb.style.display = onFoot ? '' : 'none';
@@ -883,9 +1011,11 @@ function updateHUD(dt) {
   if (wnameT > 0) { wnameT -= dt; if (wnameT <= 0) $('wname').classList.remove('on'); }
   const scoped = P.mode === 'foot' && zoomT > 0.85 && WEAPONS[P.weapon].scope;
   $('scope').style.opacity = scoped ? '1' : '0';
-  $('cross').className = P.mode === 'speeder' || P.mode === 'turret' || P.mode === 'walker' ? 'big' : '';
+  $('cross').className = (P.mode === 'speeder' || P.mode === 'turret' || P.mode === 'walker' || P.mode === 'gunner' ? 'big' : '') + (AA.lock ? ' lock' : '');
   $('cross').style.visibility = P.mode === 'dead' || scoped ? 'hidden' : 'visible';
-  $('bHarp').classList.toggle('hidden', P.mode !== 'speeder');
+  $('bHarp').classList.toggle('hidden', P.mode !== 'speeder' && !(P.mode === 'foot' && hud.gsNear));
+  const hl = P.mode === 'foot' ? 'SCHÜTZE' : P.speeder && P.speeder.laat ? 'TRUPPEN' : 'KABEL';
+  if (hud.harpLabel !== hl) { hud.harpLabel = hl; $('bHarpL').textContent = hl; }
   $('bJump').classList.toggle('hidden', P.mode !== 'foot');
   $('bZoom').classList.toggle('on', input.zoomToggle);
   $('bZoom').classList.toggle('hidden', P.mode === 'dead');

@@ -218,8 +218,8 @@ const SFX = {
     this.budget -= 1;
     const B = this.bufs;
     const set = kind === 0 ? (f === REB ? B.reb : B.imp) : kind === 1 ? B.atst : kind === 2 ? B.atat : kind === 3 ? B.turret
-      : kind === 5 ? B.sniper : kind === 6 ? B.rep : B.speeder;
-    const vol = [0.55, 0.8, 1.2, 0.85, 0.5, 0.75, 0.45][kind] || 0.5;
+      : kind === 5 ? B.sniper : kind === 6 ? B.rep : kind === 8 ? B.turret : B.speeder;
+    const vol = [0.55, 0.8, 1.2, 0.85, 0.5, 0.75, 0.45, 0.4, 0.7][kind] || 0.5;
     this.play(pick(set), p, vol, rand(0.94, 1.06), kind === 2);
   },
   boom(p, size) { if (this.ctx) this.play(pick(this.bufs.boom), p, Math.min(1.6, 0.5 + size * 0.4), rand(0.85, 1.1) * (size > 2.5 ? 0.8 : 1), true); },

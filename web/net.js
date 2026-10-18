@@ -76,7 +76,7 @@ function testTransport() {
 }
 
 // ---------------------------------------------------------------- Avatare der Mitspieler
-const PMODES = ['foot', 'turret', 'speeder', 'walker', 'dead', 'spectate'];
+const PMODES = ['foot', 'turret', 'speeder', 'walker', 'dead', 'spectate', 'gunner'];
 const SPMODES = ['parked', 'ai', 'player', 'remote', 'tow', 'crash', 'gone'];
 const BATTLE_KEYS = ['map', 'rebels', 'rebLives', 'ewoks', 'troopers', 'atst', 'atat', 'aiSpeeders', 'turrets', 'bunkerGuns', 'lives', 'diff'];
 const GLOBAL_MSG = new Set(['kill', 'turret', 'gen', 'tow', 'pad', 'trap', 'sap', 'herohan', 'herochewie', 'herorex', 'herocody', 'tp', 'drop']);
@@ -360,7 +360,7 @@ NET.snapshot = function () {
   for (const s of G.speeders) {
     sp.push(R2(s.pos.x), R2(s.pos.y), R2(s.pos.z), R2(s.yaw), R2(s.pitch), R2(s.roll), R2(s.vel.x), R2(s.vel.y), R2(s.vel.z),
       SPMODES.indexOf(s.mode), pid(s.pilot && (s.mode === 'player' || s.mode === 'remote' || s.mode === 'tow') ? s.pilot : null), s.alive ? 1 : 0,
-      s.tow ? G.atats.indexOf(s.tow.atat) : -1);
+      s.tow ? G.atats.indexOf(s.tow.atat) : -1, pid(s.gunner));
   }
   for (const p of G.players) pl.push(pid(p), p === P ? NET.name : p.name, p.faction, R2(p.pos.x), R2(p.pos.y), R2(p.pos.z), R2(p.yaw), R2(p.pitch), PMODES.indexOf(p.mode), p.alive ? 1 : 0, p.kills, p.lives);
   const T = G.transport;
@@ -388,6 +388,9 @@ NET.releaseVehicle = function (av, v) {
   } else if (v.k === 'tu') {
     const t = G.turrets[v.i];
     if (t && t.mannedBy === av) { t.manned = false; t.mannedBy = null; t.net = null; }
+  } else if (v.k === 'gn') {
+    const sp = G.speeders[v.i];
+    if (sp && sp.gunner === av) sp.gunner = null;
   }
 };
 NET.deny = function (av) {
@@ -415,12 +418,16 @@ NET.applyRemoteVehicle = function (av, v) {
     if (!sp) return;
     if (sp.pilot !== av || (sp.mode !== 'remote' && sp.mode !== 'tow')) {
       if (sp.mode !== 'parked') { if (!(sp.pilot === av && (sp.mode === 'crash' || sp.mode === 'gone'))) NET.deny(av); return; }
-      sp.mode = 'remote'; sp.pilot = av; sp.alive = true; sp.hp = 4;
+      sp.mode = 'remote'; sp.pilot = av; sp.alive = true; sp.hp = sp.maxHp;
     }
     if (sp.mode === 'remote') {
       sp.pos.set(v.x, v.y, v.z); sp.yaw = v.yaw; sp.pitch = v.pitch; sp.roll = v.roll;
       sp.vel.set(v.vx, v.vy, v.vz); sp.speed = sp.vel.length();
     }
+  } else if (v.k === 'gn') {             // Bordschütze eines Kanonenboots
+    const sp = G.speeders[v.i];
+    if (!sp || !sp.alive || (sp.gunner && sp.gunner !== av)) { NET.deny(av); return; }
+    sp.gunner = av;
   } else if (v.k === 'tu') {
     const t = G.turrets[v.i];
     if (!t || !t.alive) { NET.deny(av); return; }
@@ -519,6 +526,7 @@ NET.myVehicle = function () {
   if (P.walker) { const w = P.walker; return { k: w.type, i: walkerList(w.type).indexOf(w), x: r2(w.pos.x), z: r2(w.pos.z), yaw: r2(w.yaw), hy: r2(w.head.rotation.y), hx: r2(w.head.rotation.x), mv: Math.abs(w.ctrl.fwd) > 0.05 ? 1 : 0 }; }
   if (P.speeder) { const s = P.speeder; return { k: 'sp', i: G.speeders.indexOf(s), x: r2(s.pos.x), y: r2(s.pos.y), z: r2(s.pos.z), yaw: r2(s.yaw), pitch: r2(s.pitch), roll: r2(s.roll), vx: r2(s.vel.x), vy: r2(s.vel.y), vz: r2(s.vel.z) }; }
   if (P.turret) { const t = P.turret; return { k: 'tu', i: G.turrets.indexOf(t), ay: r2(t.aimYaw), ap: r2(t.aimPitch) }; }
+  if (P.gunship) return { k: 'gn', i: G.speeders.indexOf(P.gunship) };
   return null;
 };
 NET.clientTick = function (dt) {
@@ -582,7 +590,8 @@ NET.applySnapshot = function (m) {
     if (t.alive && !m.tu[b + 2]) { if (quiet) { t.alive = false; t.head.visible = false; t.root.scale.y = 0.55; } else t.netDestroy(); }
   });
   G.speeders.forEach((s, i) => {
-    const b = i * 13; if (b >= m.sp.length) return;
+    const b = i * 14; if (b >= m.sp.length) return;
+    if (P.gunship !== s) s.gunner = avatarRef(m.sp[b + 13]);
     const a = m.sp, mode = SPMODES[a[b + 9]] || 'parked', pl = a[b + 10], mine = P.speeder === s;
     s.netTow = a[b + 12] >= 0 ? a[b + 12] : null;
     s.alive = !!a[b + 11];
@@ -639,7 +648,8 @@ NET.onClientMsg = function (m) {
     case 'die': if (NET.inGame) killPlayer(m.c || 'Getroffen'); break;
     case 'hit': G.hitMarker(P); break;
     case 'deny':
-      if (P.walker) P.exitWalker(); else if (P.turret) P.exitTurret(false);
+      if (P.gunship) P.exitGunner(true);
+      else if (P.walker) P.exitWalker(); else if (P.turret) P.exitTurret(false);
       else if (P.speeder) { const sp = P.speeder; P.mode = 'foot'; P.speeder = null; P.pos.set(sp.pos.x, heightAt(sp.pos.x, sp.pos.z), sp.pos.z); }
       G.msg('Dieses Fahrzeug ist schon besetzt.', 'deny');
       break;

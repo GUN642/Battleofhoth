@@ -35,13 +35,12 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 8
-VERSION_NAME = '1.7'
+VERSION_CODE = 9
+VERSION_NAME = '1.8'
 RELEASE_NOTES = [
-    'Neue Karte Geonosis: Wüste mit Felsnadeln und Tafelbergen, Klonkrieger gegen die Droidenarmee',
-    'Captain Rex und Commander Cody, AAT-Panzer der Droiden (auch selbst steuerbar)',
-    'LAAT-Kanonenboote: selbst fliegen, Klonkrieger absetzen – KI-Kanonenboote fliegen Verstärkung an die Front',
-    'Klone schießen blau, Droiden rot; Ewok-Speere auf Endor jetzt als Speere sichtbar',
+    'Kanonenboote: als Bordschütze einsteigen (F / Y) – ein Mitspieler oder ein Klonpilot fliegt',
+    'Laser der Kanonenboote mit Annäherungszünder: Treffer knapp neben Gegnern sind tödlich, größere Explosion',
+    'Zielhilfe für Controller und Touch: Fadenkreuz bleibt an Gegnern, rot = Ziel erfasst (im Menü einstellbar)',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

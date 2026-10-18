@@ -42,6 +42,8 @@ const KIND = [
   { speed: 320, len: 3.4, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 2.2 },     // 5 Präzisionsgewehr
   { speed: 135, len: 1.3, w: 0.08, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.8 },     // 6 Repetierblaster
   { speed: 34, len: 1.5, w: 0.045, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.3 },     // 7 Ewok-Speer
+  // 8 Kanonenboot (LAAT): Annäherungszünder – ein Treffer knapp daneben zählt, Explosion tötet Infanterie im Umkreis
+  { speed: 200, len: 3.2, w: 0.2, splash: 3.5, atst: 1, atat: 0.25, struct: 0, veh: 0, life: 2.2, prox: 2.2 },
 ];
 
 // ---------------------------------------------------------------- Thermaldetonatoren
@@ -475,14 +477,14 @@ function updateBolts(dt) {
         if (!s.alive) continue;
         const p = s.pos;
         if (p.x < minx || p.x > maxx || p.z < minz || p.z > maxz) continue;
-        const t = segCyl(x0, y0, z0, dx, dy, dz, p.x, p.y, p.z, s.r, s.h);
+        const t = segCyl(x0, y0, z0, dx, dy, dz, p.x, p.y - (K.prox || 0) * 0.5, p.z, s.r + (K.prox || 0), s.h + (K.prox || 0));
         if (t >= 0 && t < bestT) { bestT = t; hitObj = s; hitType = 'sol'; }
       }
     }
     if (!G.visualOnly) {
       for (const P of G.players) {
         if (!P.alive || P.mode !== 'foot' || P.god > 0 || b.f === P.faction) continue;
-        const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y, P.pos.z, 0.38, 1.8);
+        const t = segCyl(x0, y0, z0, dx, dy, dz, P.pos.x, P.pos.y - (K.prox || 0) * 0.5, P.pos.z, 0.38 + (K.prox || 0), 1.8 + (K.prox || 0));
         if (t >= 0 && t < bestT) { bestT = t; hitObj = P; hitType = 'player'; }
       }
     }
@@ -504,7 +506,7 @@ function updateBolts(dt) {
     } else {
       for (const w of G.atsts) {
         if (!w.alive) continue;
-        for (const sp of w.spheres) { const t = segSphere(x0, y0, z0, dx, dy, dz, sp, sp.r); if (t >= 0 && t < bestT) { bestT = t; hitObj = w; hitType = 'atst'; } }
+        for (const sp of w.spheres) { const t = segSphere(x0, y0, z0, dx, dy, dz, sp, sp.r + (K.prox || 0) * 0.5); if (t >= 0 && t < bestT) { bestT = t; hitObj = w; hitType = 'atst'; } }
       }
       for (const w of G.atats) {
         if (!w.alive) continue;
@@ -1148,6 +1150,7 @@ class Speeder {
     this.laat = MAP.id === 'geonosis'; this.label = this.laat ? 'Kanonenboot' : 'Schneegleiter';
     this.maxHp = this.laat ? 10 : 4; this.rad = this.laat ? 4.6 : 2.6; this.hc = new V3();
     this.type = 'speeder'; this.alive = true; this.hp = this.maxHp; this.mode = mode;
+    this.gunner = null; this.waitT = 0; this.autoPilot = false;     // Bordschütze (Spieler oder Mitspieler), KI-Pilot fliegt ihn
     this.home = new V3(x, y, z); this.homeYaw = yaw;
     this.pos = new V3(x, y, z); this.vel = new V3(); this.yaw = yaw; this.pitch = 0; this.roll = 0; this.speed = mode === 'parked' ? 0 : 45;
     this.fireCd = 0; this.gun = 0; this.respawnT = 0; this.smokeT = 0;
@@ -1199,10 +1202,17 @@ class Speeder {
   fire(dir, owner) {
     if (this.fireCd > 0) return;
     this.fireCd = this.laat ? 0.2 : 0.16; this.gun ^= 1;
-    if (this.laat) _v1.set(this.gun ? 2.7 : -2.7, 2.2, 2.6).applyMatrix4(this.mesh.matrixWorld);   // Kugeltürme
+    if (this.laat) _v1.set(this.gun ? 0.5 : -0.5, 1.4, 9.4).applyMatrix4(this.mesh.matrixWorld);   // Bugkanonen
     else _v1.set(this.gun ? 1.95 : -1.95, 0.4, 1.4).applyMatrix4(this.mesh.matrixWorld);
     _v2.copy(_v1).addScaledVector(dir, 200);
-    fireBolt(4, REB, _v1, _v2, isHuman(owner) ? 0.002 : 0.02, owner);
+    fireBolt(this.laat ? 8 : 4, REB, _v1, _v2, isHuman(owner) ? 0.002 : 0.02, owner);
+  }
+  // Kugelturm auf der Seite, in die der Bordschütze zielt (Weltposition in out)
+  ballTurret(dir, out) {
+    _v2.set(2.7, 2.2, 2.0).applyMatrix4(this.mesh.matrixWorld);
+    out.set(-2.7, 2.2, 2.0).applyMatrix4(this.mesh.matrixWorld);
+    if ((_v2.x - this.hc.x) * dir.x + (_v2.z - this.hc.z) * dir.z > (out.x - this.hc.x) * dir.x + (out.z - this.hc.z) * dir.z) out.copy(_v2);
+    return out;
   }
   damage(d, by) {
     if (!this.alive || this.mode === 'tow' || this.mode === 'parked' || this.mode === 'gone' || this.mode === 'crash') return;
@@ -1216,6 +1226,9 @@ class Speeder {
       G.msg(wasPlayer ? `Dein ${this.label} wurde abgeschossen!` : `Ein ${this.label} wurde abgeschossen!`, 'speeder');
       if (wasPlayer) G.player.speederDestroyed();
       if (wasRemote && this.pilot) G.onRemoteDown(this.pilot, this.label + ' abgeschossen');
+      const gn = this.gunner; this.gunner = null;
+      if (gn === G.player) G.player.gunshipDown(this);
+      else if (gn && gn.remote) G.onRemoteDown(gn, this.label + ' abgeschossen');
     }
   }
   startTow(atat) {
@@ -1287,7 +1300,7 @@ class Speeder {
     }
     if (this.pos.y - heightAt(this.pos.x, this.pos.z) < 10) wantPitch = Math.max(wantPitch, 0.25);
     if (Math.abs(this.pos.x) > 420 || this.pos.z < -820 || this.pos.z > 260) wantYaw = Math.atan2(-this.pos.x, -150 - this.pos.z);
-    this.fly(dt, wantYaw, wantPitch, this.laat ? 34 : 48);
+    this.fly(dt, wantYaw, wantPitch, this.laat ? (this.gunner ? 26 : 34) : 48);
   }
   // Pose aus dem Netz, mit Vorausberechnung über die Geschwindigkeit
   updateNet(dt) {
@@ -1319,7 +1332,14 @@ class Speeder {
     if (this.puppet && (this.pilot !== G.player || this.mode === 'tow')) { this.updateNet(dt); return; }
     switch (this.mode) {
       case 'remote': this.checkCollide(); this.sync(); break;
-      case 'ai': this.updateAI(dt); break;
+      case 'parked':
+        // Nur ein Bordschütze an Bord: nach kurzer Wartezeit startet ein KI-Pilot
+        if (this.gunner) { this.waitT += dt; if (this.waitT > 4) { this.mode = 'ai'; this.autoPilot = true; this.speed = 18; this.pitch = 0.4; this.ai.retarget = 0; G.msg('Ein Klonpilot startet das Kanonenboot – du bist der Bordschütze!', 'gunAI'); } }
+        else this.waitT = 0;
+        break;
+      case 'ai':
+        if (this.autoPilot && !this.gunner) { this.mode = 'gone'; this.alive = false; this.respawnT = 3; this.autoPilot = false; this.sync(); break; }   // zurück zur Landezone
+        this.updateAI(dt); break;
       case 'tow': this.updateTow(dt); break;
       case 'crash': {
         this.vel.y -= 15 * dt; this.pos.addScaledVector(this.vel, dt);
@@ -1341,6 +1361,7 @@ class Speeder {
     }
   }
   reset() {
+    this.gunner = null; this.autoPilot = false; this.waitT = 0;
     this.alive = true; this.hp = this.maxHp; this.mode = 'parked'; this.pos.copy(this.home); this.yaw = this.homeYaw;
     this.pitch = 0; this.roll = 0; this.speed = 0; this.vel.set(0, 0, 0); this.sync();
   }

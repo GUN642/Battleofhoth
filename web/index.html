@@ -39,6 +39,7 @@
   #cross i:nth-child(3) { top: 14px; left: 0; height: 2px; width: 9px; } #cross i:nth-child(4) { top: 14px; right: 0; height: 2px; width: 9px; }
   #cross i:nth-child(5) { left: 13.5px; top: 13.5px; width: 3px; height: 3px; border-radius: 50%; }
   #cross.big { width: 64px; height: 64px; border: 1.5px solid rgba(255, 190, 90, 0.85); border-radius: 50%; box-shadow: 0 0 10px rgba(255, 170, 60, 0.4); }
+  #cross.lock i { background: #ff4a2a; box-shadow: 0 0 6px rgba(255, 74, 42, 0.9); } #cross.big.lock { border-color: #ff4a2a; box-shadow: 0 0 12px rgba(255, 74, 42, 0.6); }
   #cross.big i { display: none; } #cross.big i:nth-child(5) { display: block; left: 29px; top: 29px; background: var(--acc); }
   #hit { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%) rotate(45deg) scale(0.8); opacity: 0; transition: opacity 0.15s, transform 0.15s; }
   #hit i { position: absolute; background: #ff4a2a; box-shadow: 0 0 6px #ff4a2a; }
@@ -205,7 +206,7 @@
   <div class="tbtn" id="bJump"><svg viewBox="0 0 24 24"><path d="M6 14l6-6 6 6M6 19l6-6 6 6"/></svg>SPRUNG</div>
   <div class="tbtn" id="bUse"><svg viewBox="0 0 24 24"><path d="M9 11V5a2 2 0 0 1 4 0v5M13 10V4a2 2 0 0 1 4 0v8M17 9a2 2 0 0 1 3 1v4a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3l-2-4a2 2 0 0 1 3-2l2 2V7a2 2 0 0 1 4 0"/></svg>E</div>
   <div class="tbtn" id="bZoom"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M11 3v3M11 16v3M3 11h3M16 11h3M20 20l-4-4"/></svg>ZOOM</div>
-  <div class="tbtn hidden" id="bHarp"><svg viewBox="0 0 24 24"><path d="M4 20c4-1 6-4 6-8a4 4 0 1 1 4 4c-4 0-7 2-8 6"/><circle cx="14" cy="12" r="1.5"/></svg>KABEL</div>
+  <div class="tbtn hidden" id="bHarp"><svg viewBox="0 0 24 24"><path d="M4 20c4-1 6-4 6-8a4 4 0 1 1 4 4c-4 0-7 2-8 6"/><circle cx="14" cy="12" r="1.5"/></svg><span id="bHarpL">KABEL</span></div>
   <div class="tbtn" id="bPause"><svg viewBox="0 0 24 24" style="width:55%;height:55%"><path d="M9 6v12M15 6v12"/></svg></div>
 </div>
 
@@ -231,7 +232,9 @@
         Als Imperialer kannst du am Bunkertor eine <b>Sprengladung</b> anbringen (eine pro Leben).<br>
         <b>Geonosis:</b> Klonkrieger (Seite Rebellen) mit Captain Rex und Commander Cody verteidigen ihre Kommandozentrale gegen die Droidenarmee (Seite Imperium).
         AAT-Panzer lassen sich nur mit Geschütztürmen oder <b>Kanonenbooten</b> zerstören. Kanonenboote stehen an der Landezone (E einsteigen) und fliegen
-        gefallene Klone als Verstärkung an die Front. Im eigenen Kanonenboot setzt du wartende Klone mit F / Y / KABEL ab, sobald du tief fliegst.<br>
+        gefallene Klone als Verstärkung an die Front. Im eigenen Kanonenboot setzt du wartende Klone mit F / Y / TRUPPEN ab, sobald du tief fliegst.
+        Mit F / Y / SCHÜTZE steigst du als <b>Bordschütze</b> ein (ein Mitspieler oder ein Klonpilot fliegt), die Laser der Kanonenboote explodieren schon knapp neben dem Ziel.<br>
+        <b>Zielhilfe:</b> Mit Controller oder Touch bleibt das Fadenkreuz an Gegnern hängen (rot = Ziel erfasst). Einstellbar im Menü unter „Zielhilfe“.<br>
         <b>PC:</b> WASD · Maus zielen · Linksklick feuern · rechte Maustaste halten (oder Q) = Visier/Zoom · Shift sprinten · Leertaste springen · E benutzen · F Schleppkabel · W/S Schub · 1–4 / Mausrad Waffe wählen · Esc Pause<br>
         <b>Controller:</b> linker Stick bewegen · rechter Stick zielen · ZR/R feuern · ZL/L Visier (X umschalten) · A springen · B benutzen/einsteigen · Y Waffe wechseln bzw. Schleppkabel · Steuerkreuz ◀ ▶ Waffe wählen · Stick drücken sprinten · + Pause. Im Menü: hoch/runter blättern, links/rechts Wert ändern, A bestätigen, B zurück<br>
         <b>Touch:</b> Links ziehen = bewegen · rechts wischen = zielen · FEUER halten und dabei zielen · ZOOM = Visier · E = Turm/Gleiter/Läufer · KABEL = Schleppkabel · Waffenleiste unten antippen = Waffe wählen<br>

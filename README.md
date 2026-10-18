@@ -82,6 +82,10 @@ Angriffsschiffen der Republik am Himmel und gelandeten Kernschiffen der Separati
 - **Kanonenboote:** Zwei stehen an der Landezone hinter der Linie (mit E einsteigen), weitere fliegen als KI. Gefallene Klone warten auf
   Transport: KI-Kanonenboote fliegen sie in Gruppen an die Front. Im eigenen Kanonenboot setzt du wartende Klone mit **F / Y / KABEL**
   ab, sobald du tiefer als 14 m fliegst – auch mitten im Gelände, um die Droiden zu flankieren.
+- **Bordschütze:** Neben einem Kanonenboot mit **F / Y / SCHÜTZE** einsteigen. Du zielst frei und feuerst aus dem Kugelturm auf der
+  Seite, in die du schaust. Ideal im Mehrspieler: einer fliegt, der andere schießt. Allein startet nach wenigen Sekunden ein Klonpilot.
+- Die Laser der Kanonenboote haben einen **Annäherungszünder**: Ein Schuss knapp neben einem Gegner ist ebenfalls tödlich,
+  die Explosion trifft Infanterie im Umkreis von etwa 3,5 m.
 
 ### Waffen
 Zu Fuß stehen vier Waffen zur Wahl (Rebellen / Imperium jeweils mit eigenem Modell). Die Waffenleiste unten
@@ -112,6 +116,10 @@ AT-AT und KI-Schneegleiter (Hoth), Geschütztürme bzw. Bunkergeschütze, deine 
 | Waffe wählen | Waffenleiste unten antippen | 1–4 oder Mausrad |
 | Schub im Gleiter | Joystick vor/zurück | W/S |
 | Pause | II oder Zurück-Taste | Esc |
+
+### Zielhilfe
+Mit Controller oder Touch wird das Fadenkreuz über Gegnern langsamer und folgt ihnen sanft. Ist es rot, ist das Ziel erfasst und
+die Schüsse fliegen genau dorthin. Im Menü unter **Zielhilfe**: „Aus“, „Controller & Touch“ (Standard) oder „Immer“ (auch mit Maus).
 
 ### Controller & Android TV
 Das Spiel läuft auch auf Android TV und lässt sich komplett mit einem Controller spielen (z. B. Nintendo-Switch-,

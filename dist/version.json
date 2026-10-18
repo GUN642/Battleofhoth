@@ -1,11 +1,10 @@
 {
-  "versionCode": 8,
-  "versionName": "1.7",
+  "versionCode": 9,
+  "versionName": "1.8",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Neue Karte Geonosis: Wüste mit Felsnadeln und Tafelbergen, Klonkrieger gegen die Droidenarmee",
-    "Captain Rex und Commander Cody, AAT-Panzer der Droiden (auch selbst steuerbar)",
-    "LAAT-Kanonenboote: selbst fliegen, Klonkrieger absetzen – KI-Kanonenboote fliegen Verstärkung an die Front",
-    "Klone schießen blau, Droiden rot; Ewok-Speere auf Endor jetzt als Speere sichtbar"
+    "Kanonenboote: als Bordschütze einsteigen (F / Y) – ein Mitspieler oder ein Klonpilot fliegt",
+    "Laser der Kanonenboote mit Annäherungszünder: Treffer knapp neben Gegnern sind tödlich, größere Explosion",
+    "Zielhilfe für Controller und Touch: Fadenkreuz bleibt an Gegnern, rot = Ziel erfasst (im Menü einstellbar)"
   ]
 }
