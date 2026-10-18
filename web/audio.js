@@ -169,6 +169,16 @@ const SFX = {
         }
         addNoise(o, sr, 0, 0.08, 2.2, 0.2);
       }, 2.2, 60)],
+      // Dauerstrahl der Kugeltürme: surrendes, leicht pulsierendes Summen
+      beam: [mk(0.34, o => {
+        let p1 = 0, p2 = 0;
+        for (let i = 0; i < o.length; i++) {
+          const t = i / sr, env = Math.min(1, t / 0.02) * Math.min(1, (0.34 - t) / 0.06);
+          p1 += (1650 + Math.sin(t * 90) * 60) / sr; p2 += 118 / sr;
+          o[i] += (Math.sin(p1 * TAU) * 0.5 + ((p2 % 1) * 2 - 1) * 0.35 * (0.6 + 0.4 * Math.sin(t * 60))) * env;
+        }
+        addNoise(o, sr, 0, 0.15, 0.3, 0.6);
+      }, 1.6, 90)],
       toss: [mk(0.3, o => { addNoise(o, sr, 0, 0.6, 0.09, 0.15); addSweep(o, sr, 0.02, 0.2, 900, 1500, 0.15, 0.06); })],
       boom: variants(3, () => mk(2.6, o => {
         addNoise(o, sr, 0, 1, 0.55, 0.035);
@@ -225,6 +235,7 @@ const SFX = {
   boom(p, size) { if (this.ctx) this.play(pick(this.bufs.boom), p, Math.min(1.6, 0.5 + size * 0.4), rand(0.85, 1.1) * (size > 2.5 ? 0.8 : 1), true); },
   r2(p) { if (this.ctx) this.play(pick(this.bufs.r2), p, 0.5, rand(0.95, 1.08)); },
   horn(p) { if (this.ctx) this.play(this.bufs.horn[0], p, 2.2, rand(0.96, 1.04), true); },
+  beam(p) { if (this.ctx) this.play(this.bufs.beam[0], p, 0.45, rand(0.97, 1.03)); },
   toss(p) { if (this.ctx) this.play(this.bufs.toss[0], p, 0.4, rand(0.9, 1.1)); },
   thump(p) { if (this.ctx) this.play(this.bufs.step[0], p, 1.6, rand(0.95, 1.05), true); },
   impact(p) { if (this.ctx && this.budget >= 1) { this.budget -= 0.5; this.play(pick(this.bufs.impact), p, 0.25, rand(0.8, 1.2)); } },

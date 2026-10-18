@@ -517,7 +517,7 @@ function resetInput() {
 }
 
 // ---------------------------------------------------------------- Zielen
-const _fwd = new V3(), _tmp = new V3(), _tmp2 = new V3(), _tmp3 = new V3();
+const _fwd = new V3(), _tmp = new V3(), _tmp2 = new V3(), _tmp3 = new V3(), _gunPos = new V3();
 function camForward(out) { const cp = Math.cos(P.pitch); return out.set(-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp); }
 // Entfernung bis zum anvisierten Punkt (damit Schüsse aus dem Lauf genau im Fadenkreuz landen)
 function aimDistance(o, d, maxD) {
@@ -867,16 +867,21 @@ function updatePlayer(dt) {
     camForward(_fwd);
     sp.ballTurret(_fwd, _tmp);
     _tmp3.set(_tmp.x - sp.hc.x, 0, _tmp.z - sp.hc.z).normalize();
-    camera.position.copy(_tmp).addScaledVector(_tmp3, 1.4); camera.position.y += 0.7;
+    camera.position.copy(_tmp).addScaledVector(_tmp3, 2.6).addScaledVector(_fwd, -2.2); camera.position.y += 1.5;   // außen über dem Kugelturm
     camera.rotation.set(P.pitch, P.yaw, 0);
     gun.visible = false;
-    if (firing && P.fireCd <= 0 && P.overheat <= 0) {
-      P.fireCd = 0.2; P.heat += 0.055;
-      if (P.heat >= 1) { P.heat = 1; P.overheat = 2; G.msg('Bordgeschütz überhitzt!', 'heat'); }
+    // Grüner Dauerstrahl wie bei den Kugeltürmen im Film: hält ~4 s, dann kurz abkühlen
+    if (firing && P.overheat <= 0) {
+      P.heat += dt * 0.42;
+      if (P.heat >= 1) { P.heat = 1; P.overheat = 1.2; G.msg('Kugelturm überhitzt – kurz abkühlen!', 'heat'); }
       camera.updateMatrixWorld(true);
       if (!assistAim(_tmp2)) { const dist = aimDistance(camera.position, _fwd, 450); _tmp2.copy(camera.position).addScaledVector(_fwd, dist); }
-      _tmp.addScaledVector(_fwd, 1.2);
-      fireBolt(8, REB, _tmp, _tmp2, 0.004, P);
+      sp.ballTurret(_fwd, _gunPos).addScaledVector(_fwd, 1.2);   // eigener Vektor: aimDistance nutzt _tmp
+      addBeam(_gunPos, _tmp2, 0.05);              // eigener Strahl jedes Bild (flüssig)
+      P.beamT = (P.beamT || 0) - dt;
+      // Treffer-Impulse genau entlang des Fadenkreuzes (sichtbarer Strahl kommt aus dem Kugelturm)
+      if (P.beamT <= 0) { P.beamT = 0.09; _tmp3.copy(camera.position).addScaledVector(_fwd, 2); fireBolt(9, REB, _tmp3, _tmp2, 0.002, P); }
+      if (Math.random() < dt * 14) FX.sparks(_tmp2, 2, 0.4, 1.4, 0.4);
     }
     prompts.push(sp.mode === 'parked' ? 'Warte auf den Piloten …' : 'Bordschütze – Ziel frei');
     prompts.push('[E] Abspringen');
@@ -1277,11 +1282,12 @@ function clientSimulate(dt) {
   else if (MAP.id === 'geonosis') updateGeonosis(dt);
 }
 function drawDynamic() {
+  drawBeams(lastDt);
   const R = [boltRed, boltGreen, boltBlue, boltSpear];
   for (const r of R) r.begin();
   // Laserfarben: Rebellen rot, Imperium grün; auf Geonosis Klone blau, Droiden rot
   const geo = MAP.id === 'geonosis';
-  for (const b of G.bolts) (b.kind === 7 ? boltSpear : b.f === REB ? (geo ? boltBlue : boltRed) : (geo ? boltRed : boltGreen)).add(b);
+  for (const b of G.bolts) if (b.kind !== 9) (b.kind === 7 ? boltSpear : b.f === REB ? (geo ? boltBlue : boltRed) : (geo ? boltRed : boltGreen)).add(b);
   for (const r of R) r.end();
   rebR.update(G.rebels); impR.update(G.imps);
   if (MAP.id !== 'hoth') drawEndor(); else ewokR.update([]);

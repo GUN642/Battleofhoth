@@ -35,12 +35,12 @@ PACKAGE = 'de.hoth.battle'
 APP_LABEL = 'Battle of Hoth'
 # Bei jedem neuen Release VERSION_CODE erhöhen: installierte Apps finden das Update dann
 # automatisch über dist/version.json im GitHub-Repository.
-VERSION_CODE = 9
-VERSION_NAME = '1.8'
+VERSION_CODE = 10
+VERSION_NAME = '1.9'
 RELEASE_NOTES = [
-    'Kanonenboote: als Bordschütze einsteigen (F / Y) – ein Mitspieler oder ein Klonpilot fliegt',
-    'Laser der Kanonenboote mit Annäherungszünder: Treffer knapp neben Gegnern sind tödlich, größere Explosion',
-    'Zielhilfe für Controller und Touch: Fadenkreuz bleibt an Gegnern, rot = Ziel erfasst (im Menü einstellbar)',
+    'Bordschütze im Kanonenboot: grüner Dauerstrahl wie im Film – hält rund 4 Sekunden, dann kurz abkühlen',
+    'Der Strahl trifft genau unter dem Fadenkreuz und tötet auch knapp daneben, AAT-Panzer nehmen laufend Schaden',
+    'Ruhigere Sicht als Bordschütze (kein Hin- und Herspringen beim Zielen nach vorn)',
 ]
 REPO_RAW = 'https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD'
 MIN_SDK = 24   # Android 7.0+: reicht die v2-Signatur aus

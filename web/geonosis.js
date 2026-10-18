@@ -427,3 +427,56 @@ class NetTransport {
   }
   remove() { G.dyn.remove(this.mesh); }
 }
+
+// ---------------------------------------------------------------- Dauerstrahl der Kugeltürme (grün)
+//  Sichtbare Strahlen: der eigene wird jedes Bild neu gesetzt, die anderer Spieler kommen als
+//  Treffer-Impulse (Lasertyp 9) und leuchten jeweils kurz nach.
+const BEAMS = [];
+let BEAM_R = null;
+function addBeam(a, b, life) {
+  const o = BEAMS.find(x => x.t <= 0) || (BEAMS.length < 24 ? (BEAMS[BEAMS.length] = { a: new V3(), b: new V3(), t: 0 }) : null);
+  if (!o) return;
+  o.a.copy(a); o.b.copy(b); o.t = life;
+}
+// Ende eines Strahls (Gelände, Felsen, Läufer) für fremde Strahlen
+function beamEnd(from, dir, maxD, out) {
+  let best = maxD;
+  for (let t = 2; t < maxD; t += 3) if (heightAt(from.x + dir.x * t, from.z + dir.z * t) > from.y + dir.y * t) { best = t; break; }
+  if (OBST.n) { const t = OBST.seg(from.x, from.y, from.z, dir.x * best, dir.y * best, dir.z * best); if (t <= 1) best *= t; }
+  for (const w of G.atsts) if (w.alive) {
+    const s = w.spheres[0]; _v1.subVectors(s, from); const t = _v1.dot(dir);
+    if (t > 0 && t < best && _v1.addScaledVector(dir, -t).lengthSq() < s.r * s.r) best = t;
+  }
+  return out.copy(from).addScaledVector(dir, best);
+}
+const beamSnd = new Map();
+G.onBeam = (from, dir, owner) => {
+  const last = beamSnd.get(owner) || -1;
+  if (G.time - last > 0.28 || G.time < last) { beamSnd.set(owner, G.time); SFX.beam(from); FX.flash(from, 0.4, 1.4, 0.4, 2, 0.15); }
+  if (owner === G.player) return;                 // eigener Strahl wird jedes Bild gezeichnet
+  addBeam(from, beamEnd(from, dir, 450, _v2), 0.13);
+};
+function drawBeams(dt) {
+  if (!BEAM_R) {
+    const geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8, 1); geo.rotateX(Math.PI / 2);
+    const core = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(0.35, 2.8, 0.4) }), 24);
+    const glow = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(0.04, 0.85, 0.08), transparent: true, opacity: 0.6,
+      blending: THREE.AdditiveBlending, depthWrite: false }), 24);
+    for (const m of [core, glow]) { m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count = 0; G.scene.add(m); }
+    glow.renderOrder = 7;
+    BEAM_R = { core, glow };
+  }
+  let n = 0;
+  for (const b of BEAMS) {
+    if (b.t <= 0) continue;
+    b.t -= dt;
+    _v1.subVectors(b.b, b.a); const len = _v1.length(); if (len < 0.1) continue;
+    _v1.divideScalar(len); _q.setFromUnitVectors(_Z, _v1);
+    _v2.copy(b.a).addScaledVector(_v1, len * 0.5);
+    const w = 0.13 + Math.random() * 0.05;
+    _v3.set(w, w, len); _m.compose(_v2, _q, _v3); BEAM_R.core.setMatrixAt(n, _m);
+    _v3.set(w * 4.5, w * 4.5, len); _m.compose(_v2, _q, _v3); BEAM_R.glow.setMatrixAt(n, _m);
+    n++;
+  }
+  for (const m of [BEAM_R.core, BEAM_R.glow]) { m.count = n; m.instanceMatrix.needsUpdate = true; }
+}

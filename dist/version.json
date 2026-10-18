@@ -1,10 +1,10 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8",
+  "versionCode": 10,
+  "versionName": "1.9",
   "apk": "https://raw.githubusercontent.com/GUN642/Battleofhoth/HEAD/dist/BattleOfHoth.apk",
   "notes": [
-    "Kanonenboote: als Bordschütze einsteigen (F / Y) – ein Mitspieler oder ein Klonpilot fliegt",
-    "Laser der Kanonenboote mit Annäherungszünder: Treffer knapp neben Gegnern sind tödlich, größere Explosion",
-    "Zielhilfe für Controller und Touch: Fadenkreuz bleibt an Gegnern, rot = Ziel erfasst (im Menü einstellbar)"
+    "Bordschütze im Kanonenboot: grüner Dauerstrahl wie im Film – hält rund 4 Sekunden, dann kurz abkühlen",
+    "Der Strahl trifft genau unter dem Fadenkreuz und tötet auch knapp daneben, AAT-Panzer nehmen laufend Schaden",
+    "Ruhigere Sicht als Bordschütze (kein Hin- und Herspringen beim Zielen nach vorn)"
   ]
 }

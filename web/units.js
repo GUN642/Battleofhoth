@@ -44,6 +44,8 @@ const KIND = [
   { speed: 34, len: 1.5, w: 0.045, splash: 0, atst: 0, atat: 0, struct: 0, veh: 0, life: 1.3 },     // 7 Ewok-Speer
   // 8 Kanonenboot (LAAT): Annäherungszünder – ein Treffer knapp daneben zählt, Explosion tötet Infanterie im Umkreis
   { speed: 200, len: 3.2, w: 0.2, splash: 3.5, atst: 1, atat: 0.25, struct: 0, veh: 0, life: 2.2, prox: 2.2 },
+  // 9 Dauerstrahl der Kugeltürme (Bordschütze): unsichtbare, sehr schnelle Treffer-Impulse ~11x pro Sekunde, als grüner Strahl gezeichnet
+  { speed: 900, len: 0, w: 0, splash: 0, atst: 0.35, atat: 0.1, struct: 0, veh: 0, life: 0.55, prox: 1.8, beam: true },
 ];
 
 // ---------------------------------------------------------------- Thermaldetonatoren
@@ -410,6 +412,7 @@ function fireBolt(kind, f, from, to, spread, owner, fromNet) {
   G.bolts.push(b);
   if (G.netHook && !fromNet) G.netHook(b);
   if (kind === 7) { SFX.toss(from); return b; }
+  if (kind === 9) { G.onBeam(from, b.dir, owner); return b; }
   FX.muzzle(from, f, kind > 0);
   SFX.shot(from, kind, f);
   if (kind === 2 || kind === 3) { const c = boltCol(f); FX.flash(from, c[0], c[1], c[2], 4, 0.12); }
@@ -534,6 +537,15 @@ function updateBolts(dt) {
 function onBoltHit(b, type, obj, p) {
   const K = KIND[b.kind], byPlayer = b.owner === G.player, byHuman = isHuman(b.owner);
   if (b.kind === 7 && type !== 'sol' && type !== 'player') { FX.snowPuff(p, false); if (G.visualOnly) return; }
+  if (K.beam) {                    // Dauerstrahl: grüne Funken, Schaden ohne Panzerungs-Meldung
+    FX.sparks(p, 3, 0.4, 1.4, 0.4);
+    if (type === 'ground' && Math.random() < 0.25) { FX.snowPuff(p, false); if (Math.random() < 0.3) FX.scorch(p, rand(0.5, 1)); }
+    if (G.visualOnly) return;
+    if (type === 'sol') { killSoldier(obj, b.owner); if (byHuman) G.hitMarker(b.owner); }
+    else if (type === 'player') G.onPlayerHit(obj, 'Laserstrahl');
+    else if (type === 'atst' || type === 'atat') { obj.damage(type === 'atst' ? K.atst : K.atat, b.owner); if (byHuman && Math.random() < 0.3) G.hitMarker(b.owner); }
+    return;
+  }
   if (G.visualOnly) {             // Client: nur Effekte, Schaden berechnet der Host
     if (b.kind === 7) return;
     if (K.splash > 0) { FX.explosion(p, K.splash * 0.6); SFX.boom(p, K.splash * 0.5); }
@@ -1209,10 +1221,12 @@ class Speeder {
   }
   // Kugelturm auf der Seite, in die der Bordschütze zielt (Weltposition in out)
   ballTurret(dir, out) {
+    // Seite nur wechseln, wenn deutlich auf die andere Seite gezielt wird (sonst springt die Sicht beim Zielen nach vorn)
     _v2.set(2.7, 2.2, 2.0).applyMatrix4(this.mesh.matrixWorld);
-    out.set(-2.7, 2.2, 2.0).applyMatrix4(this.mesh.matrixWorld);
-    if ((_v2.x - this.hc.x) * dir.x + (_v2.z - this.hc.z) * dir.z > (out.x - this.hc.x) * dir.x + (out.z - this.hc.z) * dir.z) out.copy(_v2);
-    return out;
+    const dr = (_v2.x - this.hc.x) * dir.x + (_v2.z - this.hc.z) * dir.z;
+    if (!this.gunSide) this.gunSide = dr >= 0 ? 1 : -1;
+    if (this.gunSide * dr < -0.9) this.gunSide = -this.gunSide;
+    return out.set(2.7 * this.gunSide, 2.2, 2.0).applyMatrix4(this.mesh.matrixWorld);
   }
   damage(d, by) {
     if (!this.alive || this.mode === 'tow' || this.mode === 'parked' || this.mode === 'gone' || this.mode === 'crash') return;
