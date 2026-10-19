@@ -6,6 +6,12 @@ Sturmtruppen, AT-STs und AT-ATs, oder du greifst als Imperialer an und steuerst 
 **Fertige APK:** [`dist/BattleOfHoth.apk`](dist/BattleOfHoth.apk) (Android 7.0 oder neuer, aktuelle Version siehe
 [`dist/version.json`](dist/version.json))
 
+## Im Browser spielen
+Die Web-Version wird bei jedem Push automatisch über GitHub Actions auf **GitHub Pages** veröffentlicht:
+**https://gun642.github.io/Battleofhoth/** (PC mit Maus/Tastatur oder Controller, Handy/Tablet mit Touch).
+Der LAN-Mehrspieler funktioniert nur in der Android-App. Einmalig muss Pages im Repository eingeschaltet sein:
+*Settings → Pages → Build and deployment → Source: „GitHub Actions“*.
+
 ## Installation
 1. `dist/BattleOfHoth.apk` aufs Handy laden.
 2. Installation aus „unbekannten Quellen“ für den Browser/Dateimanager erlauben.

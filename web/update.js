@@ -16,6 +16,16 @@
     $('verLabel').textContent = 'Version ' + App.versionName() + (extra ? ' · ' + extra : '');
   }
   if (App) { setVer(''); btn.classList.remove('hidden'); }
+  else if (location.protocol.startsWith('http')) {
+    // Web-Version (z. B. GitHub Pages): Versionsnummer anzeigen und die Android-App zum Download anbieten
+    fetch('version.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(i => {
+      if (!i) return;
+      $('verLabel').textContent = 'Web-Version ' + i.versionName;
+      const a = document.createElement('a');
+      a.href = i.apk; a.textContent = 'Android-App (APK) laden'; a.className = 'applink';
+      $('verLabel').after(a);
+    }).catch(() => {});
+  }
 
   function show() {
     const i = st.info;

@@ -97,6 +97,7 @@
   #bZoom { right: calc(4vw + 5vmin); bottom: calc(8vh + 27vmin); width: 13vmin; height: 13vmin; }
   #bPause { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + clamp(50px, 11vmin, 66px)); left: max(10px, env(safe-area-inset-left)); width: 40px; height: 40px; border-radius: 10px; }
 
+  .applink { margin-left: 10px; color: var(--acc); font-size: clamp(10px, 1.9vmin, 12px); letter-spacing: 0.06em; text-decoration: none; border-bottom: 1px solid rgba(255, 181, 71, 0.5); }
   /* ---------- Menüs ---------- */
   .screen { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background: radial-gradient(ellipse at 30% 50%, rgba(6, 10, 18, 0.25), rgba(6, 10, 18, 0.7)); overflow-y: auto; touch-action: pan-y; }
   .screen > * { margin: auto; }
